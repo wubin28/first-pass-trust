@@ -4,7 +4,7 @@
 
 ## 引言
 
-国内做AI辅助编程的开发者，大多绕不开一个现实约束：token不自由。国际大模型API访问受限、走中转或本地代理成本高、企业内部又对调用量有配额——这些都意味着"多轮对话慢慢纠错"这条路走不通。可现实是，AI生成的代码常常"看着对、跑不对"：编译通过、逻辑读起来顺，但一提交测试就炸，或者悄悄改变了原有行为，甚至在棕地项目里悄悄破坏了看不见的既有契约。绿地项目从零开始，出了问题推倒重来代价还小；棕地项目要维护、要兼容、要不破坏别人依赖的行为，AI一旦生成不可信代码，返工成本会成倍放大。
+国内做AI辅助编程的开发者，大多绕不开一个现实约束：token不自由。国际大模型API访问受限、走中转或本地代理成本高、企业内部又对调用量有配额——这些都意味着"多轮对话慢慢纠错"这条路走不通。可现实是，AI生成的代码常常"看着对、跑不对"：编译通过、逻辑读起来顺，但一提交测试就炸，或者悄悄改变了原有行为，甚至在[棕地项目](https://engineering.futureuniversity.com/BOOKS%20FOR%20IT/Software-Engineering-9th-Edition-by-Ian-Sommerville.pdf)里悄悄破坏了看不见的既有契约。绿地项目从零开始，出了问题推倒重来代价还小；棕地项目要维护、要兼容、要不破坏别人依赖的行为，AI一旦生成不可信代码，返工成本会成倍放大。
 
 本书要解决的问题只有一个：**如何让AI在有限的token预算下，第一次就生成可信的代码**，而不是靠反复来回试错去逼近正确答案。
 
@@ -13,11 +13,11 @@
 本书提出并贯穿始终的方法论是一条链路：
 
 1. **拆需求**——把模糊诉求拆成边界清楚、可独立验证的小颗粒需求，这是可信的起点；
-2. **出 spec**——用 EARS（Easy Approach to Requirements Syntax）等结构化语法把需求写成人机之间可评审的契约，而不是一段自然语言描述；
-3. **TDD 实现**——先写失败测试，再让AI写最小实现通过测试，把"信任"焊死在每一行代码上，而不是事后靠人工通读代码去赌AI没写错；
-4. **频繁跑测试**——每一步都用自动化测试验证，把"这段代码是对的"这句话从主观判断变成可复现的证据。
+2. **出 spec**——用 [EARS（Easy Approach to Requirements Syntax）](https://alistairmavin.com/ears/)等结构化语法把需求写成人机之间可评审的契约，而不是一段自然语言描述；
+3. **TDD 实现**——[TDD (Test-Driven Development)](https://martinfowler.com/bliki/TestDrivenDevelopment.html)开发方法是先写失败测试，再让AI写最小实现通过测试，然后重构去掉重复代码，把"信任"焊死在每一行代码上，而不是事后靠人工通读代码去赌AI没写错；
+4. **频繁跑测试**——每实现一个新功能或修复一个缺陷，都全量跑自动化测试验证，把"这段代码是对的"这句话从主观判断变成可复现的证据。
 
-本书以 Apache Commons CSV 为唯一贯穿案例，覆盖三个真实场景：用 TDD 开发新功能、用 TDD 修复缺陷、用 TDD 偿还技术债，并结合 Codex 与 Superpowers（Claude Code 的 Skill 编排框架）给出可复制的实操 workflow。
+本书以 [Apache Commons CSV](https://github.com/apache/commons-csv) 为唯一贯穿案例，覆盖三个真实场景：用 TDD 开发新功能、用 TDD 修复缺陷、用 TDD 偿还技术债，并结合 [Codex](https://developers.openai.com/codex) 与 [Superpowers](https://github.com/obra/superpowers)（程序员界热门的软件开发Skill框架）给出可复制的实操 workflow。
 
 **如果这本开放电子书对你有帮助，请给它点个星⭐️！**
 
