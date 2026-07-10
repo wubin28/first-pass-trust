@@ -42,18 +42,18 @@ flowchart LR
 
 ## 1.3 场景一：用 TDD 开发新功能
 
-开发新功能是最"干净"的场景：代码库里还没有与这个功能相关的既有行为需要兼容,四步法可以从零走到底。这个场景里，四步法的侧重点在**第二步"出 spec"**——因为没有旧代码可以参照，需求的边界完全靠 spec 划定。EARS 需求和 Given-When-Then 验收标准写得越精确，AI 在第三步"TDD 实现"时可以自由发挥的空间就越小、跑偏的可能性就越低。
+开发新功能不等于在空白画布上作画——本书讨论的场景是**在棕地项目 commons-csv 上新增功能**：代码库里虽然还没有这个新功能本身，但已经有大量与它相邻、可能被它影响的既有代码（比如新特性要接入的 `CSVFormat` 配置项、要复用的 `Lexer` 解析逻辑）。这个场景里，四步法的第一步"拆需求"就要多做一件事——**分析棕地项目原有的与新特性相关的代码的依赖关系**，摸清新功能会触碰到哪些既有类、哪些既有测试，避免边界划错。摸清依赖关系之后，四步法的侧重点落在**第二步"出 spec"**：把新功能的行为边界用 EARS 需求和 Given-When-Then 验收标准写精确，AI 在第三步"TDD 实现"时可以自由发挥的空间就越小、跑偏或误伤既有代码的可能性就越低。
 
 本书第三章会以 commons-csv 的一个具体新特性——`Strict Header Schema Validation Mode`——完整走一遍这个场景：从用 EARS 表达 user story，到用 `superpowers:brainstorming` 生成验收标准，到人工评审 spec，再到用 `superpowers:test-driven-development` 落地实现，最后做一轮 Code Review。
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFFFFF','primaryTextColor':'#0A17F5','primaryBorderColor':'#0A17F5','lineColor':'#0A17F5','secondaryColor':'#FFFFFF','tertiaryColor':'#FFFFFF','background':'#FFFFFF'}}}%%
 flowchart LR
-    A["拆需求<br/>新特性拆成独立 User Story"] --> B["出 spec<br/>★ 从零定义 EARS 需求边界"]
-    B --> C["TDD 实现<br/>无旧行为负担，自由实现"]
+    A["拆需求<br/>★ 分析棕地项目原有的与新特性相关的代码的依赖关系并据此拆分"] --> B["出 spec<br/>基于依赖关系精确定义 EARS 需求边界"]
+    B --> C["TDD 实现<br/>在既有代码旁新增，不动旧逻辑"]
     C --> D["频繁跑测试<br/>确认新增不破坏既有套件"]
 
-    style A fill:#FFFFFF,stroke:#0A17F5,color:#0A17F5
+    style A fill:#FFFFFF,stroke:#0A17F5,color:#0A17F5,stroke-width:3px
     style B fill:#FFFFFF,stroke:#0A17F5,color:#0A17F5,stroke-width:3px
     style C fill:#FFFFFF,stroke:#0A17F5,color:#0A17F5
     style D fill:#FFFFFF,stroke:#0A17F5,color:#0A17F5
@@ -105,7 +105,7 @@ flowchart LR
 
 选择它的理由有三点：
 
-- **是真实棕地项目，但体量适中。** Commons CSV 是 Apache 基金会维护的开源库，提供 CSV 文件的读写能力，被广泛用于生产环境。它有真实的历史包袱、真实的既有测试套件、真实的向后兼容承诺——具备本书第 1.1 节所说的"棕地风险"，但核心源码只有十余个类，一个人可以在合理时间内建立起完整的心智模型，不会被体量拖垮学习曲线。
+- **是真实棕地项目，但体量适中。** Commons CSV 是 Apache 基金会维护的开源库，提供 CSV 文件的读写能力，被广泛用于生产环境。它有真实的历史包袱、真实的既有测试套件、真实的向后兼容承诺——具备本书第 1.1 节所说的"棕地风险"，但核心源码只有十余个类。根据 [tokei](https://github.com/XAMPPRocky/tokei) 工具统计，commons-csv 开源代码库共有 1.6 万行 Java 代码，一个人可以在合理时间内建立起完整的心智模型，不会被体量拖垮学习曲线。
 - **抽象清晰，适合做需求拆解和 spec 表达的教学案例。** 它的核心类职责划分明确：`CSVFormat` 负责描述"一种 CSV 方言"（分隔符、引号规则、是否含表头等配置）；`CSVParser` 负责把输入流解析成一条条 `CSVRecord`；`CSVPrinter` 负责把数据写出为符合格式的 CSV 文本；`Lexer` 与 `Token` 是解析过程中的词法层。这种清晰的职责边界，正好方便在后续章节里把一个新特性、一个缺陷、一笔技术债，精确落到某一个类或某几个类上，而不必牵动整个代码库。
 - **规则密集，天然适合 EARS。** CSV 格式本身充满"在什么条件下、遇到什么输入、该有什么行为"的规则（如何处理引号内的分隔符、如何处理转义字符、表头重复了该怎么办），这类规则正是 EARS 语法（1.2 节）最擅长表达的需求类型，也是本书第三章要开发的 `Strict Header Schema Validation Mode` 特性的土壤。
 
