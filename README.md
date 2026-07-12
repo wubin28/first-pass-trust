@@ -40,7 +40,7 @@
 - 1.5 场景三：用 TDD 偿还技术债
 - 1.6 本书的实操锚点：以 Apache Commons CSV 为唯一贯穿案例
 
-### [第二章 用 Codex + Superpowers 理解陌生代码库：实操 commons-csv](ch02/README.md)
+### [第二章 用 Codex + Superpowers + 端到端测试理解陌生代码库：实操 commons-csv](ch02/README.md)
 
 - 2.1 工具铺垫：Codex 与 Superpowers 各自能做什么
 - 2.2 理解陌生代码库的场景化 workflow

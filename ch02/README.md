@@ -1,4 +1,4 @@
-# 第二章 用 Codex + Superpowers 理解陌生代码库：实操 commons-csv
+# 第二章 用 Codex + Superpowers +端到端测试理解陌生代码库：实操 commons-csv
 
 ## 2.1 工具铺垫：Codex 与 Superpowers 各自能做什么
 
