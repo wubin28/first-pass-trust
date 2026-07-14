@@ -1,6 +1,6 @@
-# 让AI一次生成可信代码：用Codex、superpowers、EARS、SDD和TDD维护棕地开源项目
+# 让AI一次生成可信代码：国内Token不自由开发者用Codex、Superpowers、EARS、SDD和TDD维护棕地开源项目
 
-![first-pass-trust-cover-image.png](first-pass-trust-cover-image.png)
+![cover-image-v2.png](cover-image-v2.png)
 
 ## 引言
 
