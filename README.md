@@ -47,14 +47,17 @@
 - 2.3 实操：理解 commons-csv 的核心抽象
 - 2.4 产出物：一份可复用的"陌生代码库理解清单"
 
-### 第三章 用 AI 拆分并用 Spec + TDD 开发新需求：`Strict Header Schema Validation Mode`
+### [第三章 用 AI 拆分并用 Spec + TDD 开发新需求：`Strict Header Schema Validation Mode`](ch03/README.md)
 
 - 3.1 需求背景与范围
 - 3.2 用 EARS 精准表达 User Story
-- 3.3 用 superpowers:brainstorming 生成包含验收标准的Spec
-- 3.4 人工评审 spec：验收标准是评审重心
-- 3.5 用 superpowers:test-driven-development 实现 spec
-- 3.6 用 Superpowers 做 Code Review
+- 3.3 用 superpowers:brainstorming 把新需求纵向拆成 4 个 User Story
+- 3.4 用魔法打败魔法：让 AI 生成 EARS + 决策表 + 验收标准 + 提示词
+- 3.5 人工评审 spec：验收标准是评审重心
+- 3.6 用 superpowers:test-driven-development 逐个实现四个 Story
+- 3.7 用 Superpowers 做 Code Review：请求评审 + 接收评审
+- 3.8 故障注入测试：验证测试不是"假阳性"
+- 3.9 产出物：一份可复用的"用 AI 拆分并用 Spec + TDD 开发新需求的行动清单和提示词模板"
 
 ### 第四章 用 TDD 修复缺陷：commons-csv 实战
 
