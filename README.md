@@ -47,7 +47,7 @@
 - 2.3 实操：理解 commons-csv 的核心抽象
 - 2.4 产出物：一份可复用的"陌生代码库理解清单"
 
-### 第三章 用 EARS + TDD 开发新需求：`Strict Header Schema Validation Mode`
+### 第三章 用 AI 拆分并用 Spec + TDD 开发新需求：`Strict Header Schema Validation Mode`
 
 - 3.1 需求背景与范围
 - 3.2 用 EARS 精准表达 User Story
