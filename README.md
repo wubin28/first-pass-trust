@@ -51,7 +51,7 @@
 
 - 3.1 需求背景与范围
 - 3.2 用 EARS 精准表达 User Story
-- 3.3 用 superpowers:brainstorming 生成验收标准
+- 3.3 用 superpowers:brainstorming 生成包含验收标准的Spec
 - 3.4 人工评审 spec：验收标准是评审重心
 - 3.5 用 superpowers:test-driven-development 实现 spec
 - 3.6 用 Superpowers 做 Code Review
