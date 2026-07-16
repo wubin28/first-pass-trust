@@ -13,7 +13,7 @@ flowchart LR
     B --> C["人：做选择<br/>（从 2~3 个方案里选一个）"]
     C --> D["AI（Codex）：<br/>执行任务"]
     D --> E["人：验收证据<br/>（测试结果 / e2e 输出 / diff）"]
-    E -.进入下一环节.-> A
+    E -.进入下一环节（设计API接口、拆分需求为Story、生成Story的EARS-决策表-AC、评审自动化测试对业务的覆盖、变异测试）.-> A
 
     style A fill:#FFFFFF,stroke:#0A17F5,color:#0A17F5,stroke-width:3px
     style B fill:#FFFFFF,stroke:#0A17F5,color:#0A17F5,stroke-width:3px
