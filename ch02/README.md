@@ -155,11 +155,15 @@ try (InputStream fis = Files.newInputStream(Paths.get(args[0]));
 
 ### 关卡三：改完代码，编译又报了一个新错
 
-加上 `BOMInputStream` 后重新编译，第三个坑接踵而至：
+加上 `BOMInputStream` 后重新编译，第三个坑接踵而至。提示词是：
 
-```
-ParseExcelCsvMain.java:10: error: package org.apache.commons.io.input does not exist
-```
+> 请阅读 [e2e 目录下的 `ParseExcelCsvMain.java`]，分析在 [e2e 测试目录] 下运行下面命令报错的根因，并提供解决方案：
+> ```
+> javac -cp ../target/commons-csv-1.14.2-SNAPSHOT.jar ParseExcelCsvMain.java
+> ParseExcelCsvMain.java:10: error: package org.apache.commons.io.input does not exist
+> import org.apache.commons.io.input.BOMInputStream;
+> ...
+> ```
 
 原因和关卡一的依赖缺失是同一类问题，但这次连编译都过不去——因为 `import org.apache.commons.io.input.BOMInputStream` 用到的类根本不在编译时的 classpath 里。还是关卡一那份 `mvn dependency:build-classpath` 生成的完整依赖列表能一次性解决，编译和运行的 classpath 都带上它：
 
