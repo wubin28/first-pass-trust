@@ -193,7 +193,11 @@ unquoted function/procedure cannot use expression.
 
 ![PlantUML 渲染报错截图](images/plantuml-unquoted-error-screenshot.png)
 
-19 条 `Rel_*` 语句里，只有这一条报错——说明问题不在 C4-PlantUML 库本身，而在这一行参数的写法。追问根因后发现：C4-PlantUML 的宏是用 PlantUML 预处理器的 `!procedure` 定义的，预处理器对双引号字符串的解析规则是"从第一个 `"` 到下一个 `"` 之间是纯文本"，**不支持用反斜杠转义内部的双引号**。这一行为了在图上体现 Java 代码里 `record.get("Last Name")` 的字面双引号，写成了 `"record.get(\"Last Name\") / ..."`，预处理器把第一个 `\"` 之前的内容当作字符串提前结束，后半段就变成了裸露的、未加引号的表达式片段，触发 `unquoted function/procedure cannot use expression`。全脚本只有这一行这么写，也解释了为什么偏偏只有它报错。
+19 条 `Rel_*` 语句里，只有这一条报错——说明问题不在 C4-PlantUML 库本身，而在这一行参数的写法。带着这份报错截图去问 AI，提示词是：
+
+> 请阅读 [C4 图相关的代码理解文档]，特别留意其中"C4 Model Dynamic Diagram（PlantUML）"一节和下方"我的实际输出"里的报错截图，然后分析在 plantuml.com 在线工具中复制粘贴上述 C4 dynamic diagram 脚本后、报该截图中错误的根因，并给出解决方案。
+
+AI 给出的分析是：C4-PlantUML 的宏是用 PlantUML 预处理器的 `!procedure` 定义的，预处理器对双引号字符串的解析规则是"从第一个 `"` 到下一个 `"` 之间是纯文本"，**不支持用反斜杠转义内部的双引号**。这一行为了在图上体现 Java 代码里 `record.get("Last Name")` 的字面双引号，写成了 `"record.get(\"Last Name\") / ..."`，预处理器把第一个 `\"` 之前的内容当作字符串提前结束，后半段就变成了裸露的、未加引号的表达式片段，触发 `unquoted function/procedure cannot use expression`。全脚本只有这一行这么写，也解释了为什么偏偏只有它报错。
 
 解决思路很简单：字符串参数内部不要嵌套双引号，改用单引号：
 
