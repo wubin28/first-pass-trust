@@ -132,13 +132,7 @@ java  -cp ".:../target/commons-csv-1.14.2-SNAPSHOT.jar:$(cat /tmp/cp.txt)" Parse
 > Exception in thread "main" java.lang.IllegalArgumentException: Mapping for Last Name not found, expected one of [Last Name, First Name, Department]
 > ```
 
-报错很干脆：
-
-```
-Exception in thread "main" java.lang.IllegalArgumentException: Mapping for Last Name not found, expected one of [Last Name, First Name, Department]
-```
-
-诡异的地方在于：异常信息里打印的 `[Last Name, First Name, Department]` 看起来完全正常，但代码明明就是拿 `"Last Name"` 这个字面量去查。AI 用 `xxd` 对比两个文件的头部字节，揪出真凶：`Employees-by-excel.csv` 开头多了 `EF BB BF` 三个字节——UTF-8 BOM（Byte Order Mark）。Excel 在"另存为 CSV"时默认会写入这个 BOM 头，而代码里用的 `FileReader` 按平台默认字符集解码字节流，不会识别或剥离 BOM，于是这三个字节被解码成一个不可见字符 `U+FEFF`，原样拼接到第一个字段名前面，表头第一列实际变成了 `"﻿Last Name"`——终端显示不出这个不可见字符，看起来和 `"Last Name"`一模一样，但 `.equals()` 判定不相等，`record.get("Last Name")` 自然查无此列。
+报错果然如此。诡异的地方在于：异常信息里打印的 `[Last Name, First Name, Department]` 看起来完全正常，但代码明明就是拿 `"Last Name"` 这个字面量去查。AI 用 `xxd` 对比两个文件的头部字节，揪出真凶：`Employees-by-excel.csv` 开头多了 `EF BB BF` 三个字节——UTF-8 BOM（Byte Order Mark）。Excel 在"另存为 CSV"时默认会写入这个 BOM 头，而代码里用的 `FileReader` 按平台默认字符集解码字节流，不会识别或剥离 BOM，于是这三个字节被解码成一个不可见字符 `U+FEFF`，原样拼接到第一个字段名前面，表头第一列实际变成了 `"﻿Last Name"`——终端显示不出这个不可见字符，看起来和 `"Last Name"`一模一样，但 `.equals()` 判定不相等，`record.get("Last Name")` 自然查无此列。
 
 推荐修复：用 Apache Commons IO 的 `BOMInputStream` 包裹输入流，让它在读取阶段就自动检测并剥离 BOM：
 
