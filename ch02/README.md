@@ -125,7 +125,12 @@ java  -cp ".:../target/commons-csv-1.14.2-SNAPSHOT.jar:$(cat /tmp/cp.txt)" Parse
 
 第一关用的是手工敲出来的 CSV，而现实中的 Excel CSV 是"另存为"导出的，未必和手打文件字节完全一致。于是拿一个 Excel 实际导出的 `Employees-by-excel.csv` 复测，提示词是：
 
-> 请分析在 e2e 目录下，运行同样命令针对 `Employees-by-excel.csv` 报错的根因，并解释为何针对 `Employees.csv` 的同样命令不报错，给出解决方案。
+> 请阅读 [e2e 目录下的 `ParseExcelCsvMain.java`]，分析在 [e2e 测试目录] 下运行下面针对 `Employees-by-excel.csv` 的命令报错的根因，并解释为何针对 `Employees.csv` 的同样命令不报错，然后提供解决方案。
+>
+> 针对 `Employees.csv` 的命令正常输出四行姓名；针对 `Employees-by-excel.csv` 的同样命令抛出：
+> ```
+> Exception in thread "main" java.lang.IllegalArgumentException: Mapping for Last Name not found, expected one of [Last Name, First Name, Department]
+> ```
 
 报错很干脆：
 
