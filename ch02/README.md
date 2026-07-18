@@ -78,9 +78,11 @@ flowchart LR
 
 ### 关卡一：e2e 测试该建在哪、以及第一个意外的拦路虎
 
-第一步先让 AI 基于 user guide 的"Parsing an Excel CSV File"设计一个端到端测试。整理后发给 Codex 的提示词是（为提高阅读体验，提示词中的具体参考文件的路径名全部省略，下同）：
+第一步先让 AI 基于 user guide 的"Parsing an Excel CSV File"设计一个端到端测试。整理后发给 Codex 的提示词是（为提高阅读体验，提示词中涉及本机的具体路径已替换为占位符，下同）：
 
-> 请阅读 commons-csv 的 user guide，特别留意"Parsing an Excel CSV File"一节，结合本机 commons-csv 源码（已切到 `2026-07-11--13-29-e2e-tests` 分支），设计一个端到端测试：用该源码构建的 jar，通过 `java` 命令运行一个带 `main()` 的 class，解析一个手工创建、含"Last Name"/"First Name"两列、至少 3 行记录的 Excel CSV 文件，并将结果打印到 console。请先分析测试目录该建在 macOS home 目录下、还是建在 commons-csv 源码 repo 根目录下的 `e2e/` 子目录，给出两种方案的利弊和推荐；再提供从源码构建 jar 到最终用 `java` 命令运行测试的完整步骤和命令。
+> 请阅读 commons-csv 的 user guide，特别留意"Parsing an Excel CSV File"一节，然后参考 [commons-csv 源码目录（已切到 `2026-07-11--13-29-e2e-tests` 分支）]，根据 user guide 中"Parsing an Excel CSV File"的内容，为我设计一个端到端测试：用该源码构建的 jar 包，用 `java` 命令执行一个带 `main()` 方法的 class，解析一个用 macOS 版 Excel 手工创建、至少含"Last Name"和"First Name"两列、至少 3 行记录的 CSV 文件，并打印输出到 console。
+> 1）因为涉及把源码构建为 jar 包，是否需要在 home 目录下新建端到端测试目录？还是可以在源码根目录下创建一个 `e2e/` 测试目录来完成？请分析两种方案的利弊，按便利性推荐一种并说明理由。
+> 2）请完整提供从把源码构建为 jar 包，到最后用 `java` 命令运行端到端测试的全过程步骤和命令。我已安装 openjdk 25.0.3 和 Apache Maven 3.9.16。
 
 AI 给出的分析很干脆：建在 home 目录下能与源码 repo 完全隔离，但 classpath 要跨目录引用，命令又长又容易记错；建在 repo 根目录下的 `e2e/` 子目录，jar 就在同一 repo 的 `target/` 里，相对路径短、命令简单，而且 `e2e/` 不放进 `src/main` 或 `src/test`，不会被 Maven 打包进正式产物。推荐第二种——图便利性，这也是探索一个陌生棕地项目时最经济的选择。
 
