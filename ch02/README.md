@@ -78,9 +78,11 @@ flowchart LR
 
 ### 关卡一：e2e 测试该建在哪、以及第一个意外的拦路虎
 
-第一步先让 AI 基于 user guide 的"Parsing an Excel CSV File"设计一个端到端测试。整理后发给 Codex 的提示词是（为提高阅读体验，提示词中的具体参考文件的路径名全部省略，下同）：
+第一步先让 AI 基于 user guide 的"Parsing an Excel CSV File"设计一个端到端测试。整理后发给 Codex 的提示词是（为提高阅读体验，提示词中涉及本机的具体路径已替换为占位符，下同）：
 
-> 请阅读 commons-csv 的 user guide，特别留意"Parsing an Excel CSV File"一节，结合本机 commons-csv 源码（已切到 `2026-07-11--13-29-e2e-tests` 分支），设计一个端到端测试：用该源码构建的 jar，通过 `java` 命令运行一个带 `main()` 的 class，解析一个手工创建、含"Last Name"/"First Name"两列、至少 3 行记录的 Excel CSV 文件，并将结果打印到 console。请先分析测试目录该建在 macOS home 目录下、还是建在 commons-csv 源码 repo 根目录下的 `e2e/` 子目录，给出两种方案的利弊和推荐；再提供从源码构建 jar 到最终用 `java` 命令运行测试的完整步骤和命令。
+> 请阅读 commons-csv 的 user guide，特别留意"Parsing an Excel CSV File"一节，然后参考 [commons-csv 源码目录（已切到 `2026-07-11--13-29-e2e-tests` 分支）]，根据 user guide 中"Parsing an Excel CSV File"的内容，为我设计一个端到端测试：用该源码构建的 jar 包，用 `java` 命令执行一个带 `main()` 方法的 class，解析一个用 macOS 版 Excel 手工创建、至少含"Last Name"和"First Name"两列、至少 3 行记录的 CSV 文件，并打印输出到 console。
+> 1）因为涉及把源码构建为 jar 包，是否需要在 home 目录下新建端到端测试目录？还是可以在源码根目录下创建一个 `e2e/` 测试目录来完成？请分析两种方案的利弊，按便利性推荐一种并说明理由。
+> 2）请完整提供从把源码构建为 jar 包，到最后用 `java` 命令运行端到端测试的全过程步骤和命令。我已安装 openjdk 25.0.3 和 Apache Maven 3.9.16。
 
 AI 给出的分析很干脆：建在 home 目录下能与源码 repo 完全隔离，但 classpath 要跨目录引用，命令又长又容易记错；建在 repo 根目录下的 `e2e/` 子目录，jar 就在同一 repo 的 `target/` 里，相对路径短、命令简单，而且 `e2e/` 不放进 `src/main` 或 `src/test`，不会被 Maven 打包进正式产物。推荐第二种——图便利性，这也是探索一个陌生棕地项目时最经济的选择。
 
@@ -123,15 +125,14 @@ java  -cp ".:../target/commons-csv-1.14.2-SNAPSHOT.jar:$(cat /tmp/cp.txt)" Parse
 
 第一关用的是手工敲出来的 CSV，而现实中的 Excel CSV 是"另存为"导出的，未必和手打文件字节完全一致。于是拿一个 Excel 实际导出的 `Employees-by-excel.csv` 复测，提示词是：
 
-> 请分析在 e2e 目录下，运行同样命令针对 `Employees-by-excel.csv` 报错的根因，并解释为何针对 `Employees.csv` 的同样命令不报错，给出解决方案。
+> 请阅读 [e2e 目录下的 `ParseExcelCsvMain.java`]，分析在 [e2e 测试目录] 下运行下面针对 `Employees-by-excel.csv` 的命令报错的根因，并解释为何针对 `Employees.csv` 的同样命令不报错，然后提供解决方案。
+>
+> 针对 `Employees.csv` 的命令正常输出四行姓名；针对 `Employees-by-excel.csv` 的同样命令抛出：
+> ```
+> Exception in thread "main" java.lang.IllegalArgumentException: Mapping for Last Name not found, expected one of [Last Name, First Name, Department]
+> ```
 
-报错很干脆：
-
-```
-Exception in thread "main" java.lang.IllegalArgumentException: Mapping for Last Name not found, expected one of [Last Name, First Name, Department]
-```
-
-诡异的地方在于：异常信息里打印的 `[Last Name, First Name, Department]` 看起来完全正常，但代码明明就是拿 `"Last Name"` 这个字面量去查。AI 用 `xxd` 对比两个文件的头部字节，揪出真凶：`Employees-by-excel.csv` 开头多了 `EF BB BF` 三个字节——UTF-8 BOM（Byte Order Mark）。Excel 在"另存为 CSV"时默认会写入这个 BOM 头，而代码里用的 `FileReader` 按平台默认字符集解码字节流，不会识别或剥离 BOM，于是这三个字节被解码成一个不可见字符 `U+FEFF`，原样拼接到第一个字段名前面，表头第一列实际变成了 `"﻿Last Name"`——终端显示不出这个不可见字符，看起来和 `"Last Name"`一模一样，但 `.equals()` 判定不相等，`record.get("Last Name")` 自然查无此列。
+报错果然如此。诡异的地方在于：异常信息里打印的 `[Last Name, First Name, Department]` 看起来完全正常，但代码明明就是拿 `"Last Name"` 这个字面量去查。AI 用 `xxd` 对比两个文件的头部字节，揪出真凶：`Employees-by-excel.csv` 开头多了 `EF BB BF` 三个字节——UTF-8 BOM（Byte Order Mark）。Excel 在"另存为 CSV"时默认会写入这个 BOM 头，而代码里用的 `FileReader` 按平台默认字符集解码字节流，不会识别或剥离 BOM，于是这三个字节被解码成一个不可见字符 `U+FEFF`，原样拼接到第一个字段名前面，表头第一列实际变成了 `"﻿Last Name"`——终端显示不出这个不可见字符，看起来和 `"Last Name"`一模一样，但 `.equals()` 判定不相等，`record.get("Last Name")` 自然查无此列。
 
 推荐修复：用 Apache Commons IO 的 `BOMInputStream` 包裹输入流，让它在读取阶段就自动检测并剥离 BOM：
 
@@ -154,11 +155,15 @@ try (InputStream fis = Files.newInputStream(Paths.get(args[0]));
 
 ### 关卡三：改完代码，编译又报了一个新错
 
-加上 `BOMInputStream` 后重新编译，第三个坑接踵而至：
+加上 `BOMInputStream` 后重新编译，第三个坑接踵而至。提示词是：
 
-```
-ParseExcelCsvMain.java:10: error: package org.apache.commons.io.input does not exist
-```
+> 请阅读 [e2e 目录下的 `ParseExcelCsvMain.java`]，分析在 [e2e 测试目录] 下运行下面命令报错的根因，并提供解决方案：
+> ```
+> javac -cp ../target/commons-csv-1.14.2-SNAPSHOT.jar ParseExcelCsvMain.java
+> ParseExcelCsvMain.java:10: error: package org.apache.commons.io.input does not exist
+> import org.apache.commons.io.input.BOMInputStream;
+> ...
+> ```
 
 原因和关卡一的依赖缺失是同一类问题，但这次连编译都过不去——因为 `import org.apache.commons.io.input.BOMInputStream` 用到的类根本不在编译时的 classpath 里。还是关卡一那份 `mvn dependency:build-classpath` 生成的完整依赖列表能一次性解决，编译和运行的 classpath 都带上它：
 
@@ -188,7 +193,11 @@ unquoted function/procedure cannot use expression.
 
 ![PlantUML 渲染报错截图](images/plantuml-unquoted-error-screenshot.png)
 
-19 条 `Rel_*` 语句里，只有这一条报错——说明问题不在 C4-PlantUML 库本身，而在这一行参数的写法。追问根因后发现：C4-PlantUML 的宏是用 PlantUML 预处理器的 `!procedure` 定义的，预处理器对双引号字符串的解析规则是"从第一个 `"` 到下一个 `"` 之间是纯文本"，**不支持用反斜杠转义内部的双引号**。这一行为了在图上体现 Java 代码里 `record.get("Last Name")` 的字面双引号，写成了 `"record.get(\"Last Name\") / ..."`，预处理器把第一个 `\"` 之前的内容当作字符串提前结束，后半段就变成了裸露的、未加引号的表达式片段，触发 `unquoted function/procedure cannot use expression`。全脚本只有这一行这么写，也解释了为什么偏偏只有它报错。
+19 条 `Rel_*` 语句里，只有这一条报错——说明问题不在 C4-PlantUML 库本身，而在这一行参数的写法。带着这份报错截图去问 AI，提示词是：
+
+> 请阅读 [C4 图相关的代码理解文档]，特别留意其中"C4 Model Dynamic Diagram（PlantUML）"一节和下方"我的实际输出"里的报错截图，然后分析在 plantuml.com 在线工具中复制粘贴上述 C4 dynamic diagram 脚本后、报该截图中错误的根因，并给出解决方案。
+
+AI 给出的分析是：C4-PlantUML 的宏是用 PlantUML 预处理器的 `!procedure` 定义的，预处理器对双引号字符串的解析规则是"从第一个 `"` 到下一个 `"` 之间是纯文本"，**不支持用反斜杠转义内部的双引号**。这一行为了在图上体现 Java 代码里 `record.get("Last Name")` 的字面双引号，写成了 `"record.get(\"Last Name\") / ..."`，预处理器把第一个 `\"` 之前的内容当作字符串提前结束，后半段就变成了裸露的、未加引号的表达式片段，触发 `unquoted function/procedure cannot use expression`。全脚本只有这一行这么写，也解释了为什么偏偏只有它报错。
 
 解决思路很简单：字符串参数内部不要嵌套双引号，改用单引号：
 
@@ -206,9 +215,17 @@ Rel_L(main, csvRecord, "按表头名取值", "record.get('Last Name') / record.g
 
 有了图和 e2e 源码这两件"看得见"的素材，接下来就可以针对图上具体的调用步骤追问设计意图，而不是空泛地问"这个项目用了什么模式"。
 
-第一个追问针对图里"③ CSVFormat → CSVParser 构造"这一步——`CSVFormat.EXCEL.builder().setHeader().setSkipHeaderRecord(true).get()` 这行代码为什么要用 Builder，而不是直接 `new CSVFormat(...)`？AI 给出的解释是：`CSVFormat` 有几十个可配置字段（分隔符、引号字符、是否跳过表头……），如果用构造函数重载支持不同参数组合，会陷入"重叠构造函数"反模式——参数顺序全靠背记，新增一个可选字段就要新增一批重载；如果做成可变对象直接暴露 setter，`CSVFormat.EXCEL` 这类被到处共享的静态常量一旦可变就会造成全局污染，任何一处调用 `EXCEL.setDelimiter(';')` 都会波及所有引用它的代码。Builder 模式恰好解决这两个问题：`CSVFormat.EXCEL.builder()`（非静态版本）把 `EXCEL` 现有字段值预填进一个新 Builder，`.setHeader().setSkipHeaderRecord(true)` 只覆盖两个字段，`.get()` 产出一个全新的、不可变的 `CSVFormat` 实例——`EXCEL` 本身完全不受影响。往深一层看，`.parse(in)` 内部其实还藏着第二层 Builder：`CSVFormat.parse()` 调用 `CSVParser.builder().setReader(reader).setFormat(this).get()`，最终落到 `CSVParser` 那个 **private** 构造函数上——外部代码（包括 `ParseExcelCsvMain`）根本无法直接 `new CSVParser(...)`，Builder 是唯一合法入口，这正是 Builder 模式"构造函数私有化"这条设计约束的体现。
+第一个追问针对图里"③ CSVFormat → CSVParser 构造"这一步——`CSVFormat.EXCEL.builder().setHeader().setSkipHeaderRecord(true).get()` 这行代码为什么要用 Builder，而不是直接 `new CSVFormat(...)`？带着这个问题去问 AI，提示词是：
 
-第二个追问针对 e2e 代码本身一处容易读岔的语法——第 31 行 `for (CSVRecord record : parser)` 和它上面一行 `.parse(in)) {` 到底是什么关系？AI 的解释理清了两层语法：第 23~30 行是 **try-with-resources**（JDK 7 引入），负责打开文件、包装 BOM 处理、包装字符编码、解析 CSV，最终产出的 `parser` 既是被自动管理生命周期的资源（`CSVParser` 实现了 `Closeable`），也是接下来要遍历的数据源；第 31 行是**增强型 for 循环**（for-each，JDK 5 引入），因为 `CSVParser` 实现了 `Iterable<CSVRecord>`，可以直接放在 `:` 右边遍历。二者分工清楚：try-with-resources 管资源的生命周期（自动关闭），for-each 管资源可用期间的内容消费，for 循环运行在资源已打开、尚未关闭的这段窗口期内——弄清楚这层关系，也就顺带弄清楚了这几行代码为什么这样嵌套写。
+> 请查看 [e2e 测试的代码理解文档]，特别注意其中"关键调用时序"里"CSVFormat → CSVParser 构造"这一步，然后先解释 Builder 设计模式的定义、价值、没有它的危害、独特优势、劣势和适用场景，再结合 [e2e 目录下的 `ParseExcelCsvMain.java`] 解释为何这里用了 Builder 模式？`CSVFormat` 是如何调用 `CSVParser` 构造函数的？
+
+AI 给出的解释是：`CSVFormat` 有几十个可配置字段（分隔符、引号字符、是否跳过表头……），如果用构造函数重载支持不同参数组合，会陷入"重叠构造函数"反模式——参数顺序全靠背记，新增一个可选字段就要新增一批重载；如果做成可变对象直接暴露 setter，`CSVFormat.EXCEL` 这类被到处共享的静态常量一旦可变就会造成全局污染，任何一处调用 `EXCEL.setDelimiter(';')` 都会波及所有引用它的代码。Builder 模式恰好解决这两个问题：`CSVFormat.EXCEL.builder()`（非静态版本）把 `EXCEL` 现有字段值预填进一个新 Builder，`.setHeader().setSkipHeaderRecord(true)` 只覆盖两个字段，`.get()` 产出一个全新的、不可变的 `CSVFormat` 实例——`EXCEL` 本身完全不受影响。往深一层看，`.parse(in)` 内部其实还藏着第二层 Builder：`CSVFormat.parse()` 调用 `CSVParser.builder().setReader(reader).setFormat(this).get()`，最终落到 `CSVParser` 那个 **private** 构造函数上——外部代码（包括 `ParseExcelCsvMain`）根本无法直接 `new CSVParser(...)`，Builder 是唯一合法入口，这正是 Builder 模式"构造函数私有化"这条设计约束的体现。
+
+第二个追问针对 e2e 代码本身一处容易读岔的语法——第 31 行 `for (CSVRecord record : parser)` 和它上面一行 `.parse(in)) {` 到底是什么关系？提示词是：
+
+> 请查看 [e2e 目录下的 `ParseExcelCsvMain.java`]，解释其中第 31 行的 for 循环与其上一行 `.parse(in)) {` 之间是什么关系？这在 Java 里是什么写法？从 JDK 多少版本开始支持？
+
+AI 的解释理清了两层语法：第 23~30 行是 **try-with-resources**（JDK 7 引入），负责打开文件、包装 BOM 处理、包装字符编码、解析 CSV，最终产出的 `parser` 既是被自动管理生命周期的资源（`CSVParser` 实现了 `Closeable`），也是接下来要遍历的数据源；第 31 行是**增强型 for 循环**（for-each，JDK 5 引入），因为 `CSVParser` 实现了 `Iterable<CSVRecord>`，可以直接放在 `:` 右边遍历。二者分工清楚：try-with-resources 管资源的生命周期（自动关闭），for-each 管资源可用期间的内容消费，for 循环运行在资源已打开、尚未关闭的这段窗口期内——弄清楚这层关系，也就顺带弄清楚了这几行代码为什么这样嵌套写。
 
 至此，从一行 user guide 示例代码出发，跑通一个真实的端到端测试，踩过 RAT 插件、BOM 编码、依赖缺失、PlantUML 转义四个真实的坑，画出一张 C4 Dynamic 图，追问清楚 Builder 模式和两个语言特性——commons-csv 处理"解析一个 Excel CSV 文件"这条主流程的核心抽象，就从一堆陌生类名，变成了一张能讲清楚"谁在什么时候调用谁、为什么这样设计"的心智地图。
 
