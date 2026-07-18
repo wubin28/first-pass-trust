@@ -215,9 +215,17 @@ Rel_L(main, csvRecord, "按表头名取值", "record.get('Last Name') / record.g
 
 有了图和 e2e 源码这两件"看得见"的素材，接下来就可以针对图上具体的调用步骤追问设计意图，而不是空泛地问"这个项目用了什么模式"。
 
-第一个追问针对图里"③ CSVFormat → CSVParser 构造"这一步——`CSVFormat.EXCEL.builder().setHeader().setSkipHeaderRecord(true).get()` 这行代码为什么要用 Builder，而不是直接 `new CSVFormat(...)`？AI 给出的解释是：`CSVFormat` 有几十个可配置字段（分隔符、引号字符、是否跳过表头……），如果用构造函数重载支持不同参数组合，会陷入"重叠构造函数"反模式——参数顺序全靠背记，新增一个可选字段就要新增一批重载；如果做成可变对象直接暴露 setter，`CSVFormat.EXCEL` 这类被到处共享的静态常量一旦可变就会造成全局污染，任何一处调用 `EXCEL.setDelimiter(';')` 都会波及所有引用它的代码。Builder 模式恰好解决这两个问题：`CSVFormat.EXCEL.builder()`（非静态版本）把 `EXCEL` 现有字段值预填进一个新 Builder，`.setHeader().setSkipHeaderRecord(true)` 只覆盖两个字段，`.get()` 产出一个全新的、不可变的 `CSVFormat` 实例——`EXCEL` 本身完全不受影响。往深一层看，`.parse(in)` 内部其实还藏着第二层 Builder：`CSVFormat.parse()` 调用 `CSVParser.builder().setReader(reader).setFormat(this).get()`，最终落到 `CSVParser` 那个 **private** 构造函数上——外部代码（包括 `ParseExcelCsvMain`）根本无法直接 `new CSVParser(...)`，Builder 是唯一合法入口，这正是 Builder 模式"构造函数私有化"这条设计约束的体现。
+第一个追问针对图里"③ CSVFormat → CSVParser 构造"这一步——`CSVFormat.EXCEL.builder().setHeader().setSkipHeaderRecord(true).get()` 这行代码为什么要用 Builder，而不是直接 `new CSVFormat(...)`？带着这个问题去问 AI，提示词是：
 
-第二个追问针对 e2e 代码本身一处容易读岔的语法——第 31 行 `for (CSVRecord record : parser)` 和它上面一行 `.parse(in)) {` 到底是什么关系？AI 的解释理清了两层语法：第 23~30 行是 **try-with-resources**（JDK 7 引入），负责打开文件、包装 BOM 处理、包装字符编码、解析 CSV，最终产出的 `parser` 既是被自动管理生命周期的资源（`CSVParser` 实现了 `Closeable`），也是接下来要遍历的数据源；第 31 行是**增强型 for 循环**（for-each，JDK 5 引入），因为 `CSVParser` 实现了 `Iterable<CSVRecord>`，可以直接放在 `:` 右边遍历。二者分工清楚：try-with-resources 管资源的生命周期（自动关闭），for-each 管资源可用期间的内容消费，for 循环运行在资源已打开、尚未关闭的这段窗口期内——弄清楚这层关系，也就顺带弄清楚了这几行代码为什么这样嵌套写。
+> 请查看 [e2e 测试的代码理解文档]，特别注意其中"关键调用时序"里"CSVFormat → CSVParser 构造"这一步，然后先解释 Builder 设计模式的定义、价值、没有它的危害、独特优势、劣势和适用场景，再结合 [e2e 目录下的 `ParseExcelCsvMain.java`] 解释为何这里用了 Builder 模式？`CSVFormat` 是如何调用 `CSVParser` 构造函数的？
+
+AI 给出的解释是：`CSVFormat` 有几十个可配置字段（分隔符、引号字符、是否跳过表头……），如果用构造函数重载支持不同参数组合，会陷入"重叠构造函数"反模式——参数顺序全靠背记，新增一个可选字段就要新增一批重载；如果做成可变对象直接暴露 setter，`CSVFormat.EXCEL` 这类被到处共享的静态常量一旦可变就会造成全局污染，任何一处调用 `EXCEL.setDelimiter(';')` 都会波及所有引用它的代码。Builder 模式恰好解决这两个问题：`CSVFormat.EXCEL.builder()`（非静态版本）把 `EXCEL` 现有字段值预填进一个新 Builder，`.setHeader().setSkipHeaderRecord(true)` 只覆盖两个字段，`.get()` 产出一个全新的、不可变的 `CSVFormat` 实例——`EXCEL` 本身完全不受影响。往深一层看，`.parse(in)` 内部其实还藏着第二层 Builder：`CSVFormat.parse()` 调用 `CSVParser.builder().setReader(reader).setFormat(this).get()`，最终落到 `CSVParser` 那个 **private** 构造函数上——外部代码（包括 `ParseExcelCsvMain`）根本无法直接 `new CSVParser(...)`，Builder 是唯一合法入口，这正是 Builder 模式"构造函数私有化"这条设计约束的体现。
+
+第二个追问针对 e2e 代码本身一处容易读岔的语法——第 31 行 `for (CSVRecord record : parser)` 和它上面一行 `.parse(in)) {` 到底是什么关系？提示词是：
+
+> 请查看 [e2e 目录下的 `ParseExcelCsvMain.java`]，解释其中第 31 行的 for 循环与其上一行 `.parse(in)) {` 之间是什么关系？这在 Java 里是什么写法？从 JDK 多少版本开始支持？
+
+AI 的解释理清了两层语法：第 23~30 行是 **try-with-resources**（JDK 7 引入），负责打开文件、包装 BOM 处理、包装字符编码、解析 CSV，最终产出的 `parser` 既是被自动管理生命周期的资源（`CSVParser` 实现了 `Closeable`），也是接下来要遍历的数据源；第 31 行是**增强型 for 循环**（for-each，JDK 5 引入），因为 `CSVParser` 实现了 `Iterable<CSVRecord>`，可以直接放在 `:` 右边遍历。二者分工清楚：try-with-resources 管资源的生命周期（自动关闭），for-each 管资源可用期间的内容消费，for 循环运行在资源已打开、尚未关闭的这段窗口期内——弄清楚这层关系，也就顺带弄清楚了这几行代码为什么这样嵌套写。
 
 至此，从一行 user guide 示例代码出发，跑通一个真实的端到端测试，踩过 RAT 插件、BOM 编码、依赖缺失、PlantUML 转义四个真实的坑，画出一张 C4 Dynamic 图，追问清楚 Builder 模式和两个语言特性——commons-csv 处理"解析一个 Excel CSV 文件"这条主流程的核心抽象，就从一堆陌生类名，变成了一张能讲清楚"谁在什么时候调用谁、为什么这样设计"的心智地图。
 
