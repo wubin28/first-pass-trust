@@ -44,7 +44,7 @@ flowchart LR
 
 在棕地项目上新增功能，第一步到底该先做什么？开发新功能不等于在空白画布上作画——本书讨论的场景是**在棕地项目 commons-csv 上新增功能**：代码库里虽然还没有这个新功能本身，但已经有大量与它相邻、可能被它影响的既有代码（比如新特性要接入的 `CSVFormat` 配置项、要复用的 `Lexer` 解析逻辑）。这个场景里，四步法的第一步"拆需求"就要多做一件事——**分析棕地项目原有的与新特性相关的代码的依赖关系**，摸清新功能会触碰到哪些既有类、哪些既有测试，避免边界划错。摸清依赖关系之后，四步法的侧重点落在**第二步"出 spec"**：把新功能的行为边界用 EARS 需求和 Given-When-Then 验收标准写精确，AI 在第三步"TDD 实现"时可以自由发挥的空间就越小、跑偏或误伤既有代码的可能性就越低。
 
-本书第三章会以 commons-csv 的一个具体新特性——`Strict Header Schema Validation Mode`——完整走一遍这个场景：从用 EARS 表达 user story，到用 `superpowers:brainstorming` 生成验收标准，到人工评审 spec，再到用 `superpowers:test-driven-development` 落地实现，最后做一轮 Code Review。——第三章会把这一步用到的每一条真实提示词和踩过的坑全部摊开。
+本书第三章会以 commons-csv 的一个具体新特性——`Strict Header Schema Validation Mode`——完整走一遍这个场景：从用 EARS 表达 user story，到用 `superpowers:brainstorming` 生成验收标准，到人工评审 spec，再到用 `superpowers:test-driven-development` 落地实现，最后做一轮 Code Review——每一条真实提示词和踩过的坑，都会原样摊开。
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFFFFF','primaryTextColor':'#0A17F5','primaryBorderColor':'#0A17F5','lineColor':'#0A17F5','secondaryColor':'#FFFFFF','tertiaryColor':'#FFFFFF','background':'#FFFFFF'}}}%%
