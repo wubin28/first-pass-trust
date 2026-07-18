@@ -287,11 +287,9 @@ EARS 的资料里有一句话说得很清楚：**用户故事聚焦"用户价值
 
 > `$superpowers:brainstorming`
 >
-> 请阅读 e2e 测试视角下的新需求描述 [需求文档]，以及 e2e 测试视角下的新需求测试思路 [方案文档中"公开 `CSVHeaderSchema`，由 `CSVFormat.Builder` 显式接入"那一节]。
+> 请阅读 e2e 测试视角下的新需求描述 [需求文档]，以及 e2e 测试视角下的新需求测试思路 [方案文档中"公开 `CSVHeaderSchema`，由 `CSVFormat.Builder` 显式接入（推荐）"一节]。
 >
-> 请帮我把这个新需求做**纵向拆分（vertical slicing）**[参考：拆分用户故事的指南]，拆成若干个 user story [参考：user story 的定义]，以便我能小步迭代地完成整个新需求。
->
-> 请提供 3 个纵向拆分的方案及其优劣势供我选择，最后推荐一个并说明推荐理由。每个拆分方案，都要用 "as a ..., I want to ..., so that ..." 的格式给出 user story，并为每个 story 配一个**揭示用户价值**的标题。
+> 请帮我把这个新需求做**纵向拆分（vertical slicing）**[参考：拆分用户故事的指南]，拆成若干个 user story [参考：user story 的定义]，以便小步迭代完成整个新需求。请提供 3 个纵向拆分方案及其优劣势供我选择，最后推荐一个并说明推荐理由。每个方案都要用 "as a ..., I want to ..., so that ..." 格式给出 user story，并为每个 story 配一个**揭示用户价值**的标题。
 
 有三个细节值得留意：
 
