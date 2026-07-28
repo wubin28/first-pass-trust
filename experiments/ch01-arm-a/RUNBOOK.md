@@ -7,10 +7,12 @@
 
 ```bash
 export BOOK_REPO=/Users/binwu/OOR/katas/first-pass-trust
-export CSV_REPO=$BOOK_REPO/experiments/ch01-arm-a/workdir
+export CSV_REPO=/Users/binwu/OOR/katas/commons-csv
 ```
 
-已就绪：工作副本已 clone，分支 `2026-07-28-ch01-arm-a`，base SHA `85345a302dff477278349fbeddc25073b1dc866a`。
+已就绪：工作副本 `/Users/binwu/OOR/katas/commons-csv`，分支 `2026-07-28-arm-a`，base SHA `66a83820`（与第三章 commit range 起点相同）。
+
+**粘贴命令时一行一行贴**——多行一次性粘进 zsh 会被终端截断，报 `parse error near '\n'`。
 
 ---
 
@@ -105,9 +107,9 @@ echo "exit=${PIPESTATUS[0]}" >> $BOOK_REPO/experiments/ch01-arm-a/gates/G1.txt
 
 ```bash
 cd $CSV_REPO
-git diff 85345a3..HEAD --stat                    # 改了哪些文件
-git diff 85345a3..HEAD -- src/main/java          # 生产代码怎么写的
-git diff 85345a3..HEAD -- src/test/java          # 测试断言了什么
+git diff 66a83820..HEAD --stat                    # 改了哪些文件
+git diff 66a83820..HEAD -- src/main/java          # 生产代码怎么写的
+git diff 66a83820..HEAD -- src/test/java          # 测试断言了什么
 ```
 
 对着七条规则填 `gates/G3.md`（表格骨架我建好，你填"AI 实际实现成什么"和"覆盖它的测试"两列）：
@@ -156,7 +158,7 @@ mvn -Drat.skip=true test                    # 必须恢复为绿
 ### C5 — G5 范围守卫
 
 ```bash
-cd $CSV_REPO && git diff 85345a3..HEAD -- src/main/java > /tmp/g5-review.diff
+cd $CSV_REPO && git diff 66a83820..HEAD -- src/main/java > /tmp/g5-review.diff
 wc -l /tmp/g5-review.diff
 ```
 

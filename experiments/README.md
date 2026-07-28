@@ -11,13 +11,16 @@
 
 ## 约定
 
-- `workdir/` 是各实验的 commons-csv 工作副本，已在 `.gitignore` 中排除，不入库。
+- commons-csv 工作副本在本仓库**之外**（见下方各实验的环境事实），不入库。`.gitignore` 另行排除 `experiments/**/workdir/`，以防将来有人在实验目录内建副本。
 - 每个实验目录下必须有：`prompt.md`（提示词原文）、`baseline.txt`（改动前基线）、`generated.diff`（产出 diff）、`session.md`（模型 ID 与 token 消耗）。
 - "一次生成"边界：从提示词提交到 AI 第一次宣称完成为止，期间允许 AI 自驱动的内部循环（TDD 红绿、自查、工具调用），不允许任何人类的语义纠正。
 
 ## ch01-arm-a 环境事实
 
-- 工作副本：`experiments/ch01-arm-a/workdir/`（upstream `https://github.com/apache/commons-csv.git`）
-- 分支：`2026-07-28-ch01-arm-a`
-- base SHA：`85345a302dff477278349fbeddc25073b1dc866a`
-- clone 日期：2026-07-28
+- 工作副本：`/Users/binwu/OOR/katas/commons-csv`
+- 分支：`2026-07-28-arm-a`
+- base SHA：`66a838202d64a9b05be4e74b846619688b26cb10`
+- 基线：`Tests run: 924, Failures: 0, Errors: 0, Skipped: 11`（原始输出见 `ch01-arm-a/baseline.txt`）
+- A 臂环境洁净性核查（2026-07-28）：工作树干净；顶层无 `AGENTS.md`、`CLAUDE.md`、`.claude/`、`.codex/`、`.agents/`、`e2e/`、`docs/superpowers/` —— 无任何 harness 痕迹会泄漏进 A 臂会话。
+
+> **这个 base SHA 与第三章 commit range `66a83820..ef286e5b` 的起点相同**，因此第一章 A 臂与第三章 B 臂建立在同一个 upstream 基线上，两章数据直接可比。

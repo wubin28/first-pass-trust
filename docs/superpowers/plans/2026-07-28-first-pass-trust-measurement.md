@@ -56,11 +56,10 @@
 
 ```bash
 export BOOK_REPO=/Users/binwu/OOR/katas/first-pass-trust
-export CSV_REPO=$BOOK_REPO/experiments/ch01-arm-a/workdir
+export CSV_REPO=/Users/binwu/OOR/katas/commons-csv   # 已有的本机副本，非本仓库内
 mkdir -p $BOOK_REPO/experiments/ch01-arm-a
-git clone https://github.com/apache/commons-csv.git $CSV_REPO
-cd $CSV_REPO && git checkout -b 2026-07-28-ch01-arm-a
-git rev-parse HEAD
+cd $CSV_REPO && git checkout -b 2026-07-28-arm-a
+git rev-parse HEAD   # 实际为 66a838202d64a9b05be4e74b846619688b26cb10
 ```
 
 记下这个 base SHA，Task 2 结束时要用它算 diff。
