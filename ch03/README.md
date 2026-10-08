@@ -22,75 +22,114 @@
 
 **不适用场景**：条件本身是连续区间且没有先做等价类划分；或者需求本身只有一两个互相独立的二元开关，用决策表反而比直接列举测试用例更繁琐。
 
-## 3.2 开放设计问题决策记录
+## 3.2 开放设计问题决策记录（ADR，Architecture Decision Record）
 
 ### 3.2.1 事实依据
 
-裁决下面 7 条决策之前，先实地核查 `commons-csv` 源码得到的事实：
+实地核查 `src/main/java/org/apache/commons/csv/` 得到以下事实，是下面每条决策的依据：
 
-1. `requiredHeaders` / `setRequiredHeaders` 目前**不存在**于源码中。
-2. `CSVParser.createHeaders()` 现有的两类表头结构错误——空列名、重复列名——都抛 `IllegalArgumentException`（非受检异常），而受检异常 `CSVException` 只用于 `Lexer`/`Token` 层面"输入序列本身不合法"的场景，语义上是两类不同的错误家族。
-3. `CSVParser.createEmptyHeaderMap()` 在 `ignoreHeaderCase=true` 时返回大小写不敏感的 `TreeMap`，否则返回普通 `LinkedHashMap`——即 `headerMap` 本身天然携带大小写语义。
-4. `createHeaders()` 内部循环**逐列**检查空列名/重复列名，一旦命中就立刻 `throw`（fail-fast），`headerMap` 是在循环过程中逐步建好的；循环结束后才返回。
-5. 自动从首行解析表头、手工指定表头两种模式，在 `createHeaders()` 里只是 `headerRecord` 的来源不同，之后汇入**同一段**"构建 headerMap"循环。
-6. `CSVFormat.Builder.setHeader(String...)` 的既有语义：空数组表示"自动从首行解析表头"，这是一个**有特殊含义**的空值，而其他配置项没有这种先例。
-7. `CSVFormat.validate()` 现有的校验全部是**不依赖输入数据**的"声明形状"校验，在 `CSVFormat` 构造时同步执行。
+1. `requiredHeaders` / `setRequiredHeaders` 目前**不存在**于源码中（`grep` 无匹配）。
+2. `CSVParser.createHeaders()` 现有的两类表头结构错误——空列名、重复列名——都抛 `IllegalArgumentException`（非受检异常），而 `CSVException`（继承 `IOException`，受检）只用于 `Lexer`/`Token` 层面的"输入序列本身不合法"（如畸形引号转义），语义上是两类不同的错误家族。
+3. `CSVParser.createEmptyHeaderMap()`：
+   ```java
+   private Map<String, Integer> createEmptyHeaderMap() {
+       return format.getIgnoreHeaderCase() ?
+               new TreeMap<>(String.CASE_INSENSITIVE_ORDER) :
+               new LinkedHashMap<>();
+   }
+   ```
+   即 `headerMap` 在 `ignoreHeaderCase=true` 时天然是大小写不敏感的 `TreeMap`。
+4. `createHeaders()` 内部循环**逐列**检查空列名/重复列名，一旦命中就立刻 `throw`（fail-fast），`headerMap` 是在循环过程中逐步建好的；循环结束后才 `return new Headers(headerMap, ...)`。
+5. `setHeader()`（自动从首行解析）和 `setHeader(String...)`（手工指定）两种模式在 `createHeaders()` 里只是 `headerRecord` 的来源不同（`formatHeader.length == 0` 分支 vs `else` 分支），之后汇入**同一段**"构建 headerMap"循环。
+6. `CSVFormat.Builder.setHeader(String...)` 的既有语义：空数组 `[]` 表示"自动从首行解析表头"，这是一个**有特殊含义**的空值；而其他配置项（如 `requiredHeaders` 将要新增的）没有这种先例，需要我们自己明确定义空值语义（见决策 7）。
+7. `CSVFormat.validate()` 现有的校验全部是**不依赖输入数据**的"声明形状"校验（分隔符/引号/转义符/注释符是否互相冲突、表头数组自身有没有重复/空名），在 `CSVFormat` 构造时（即 `Builder.build()`/`get()`）同步执行，抛 `IllegalArgumentException`。
+8. `DuplicateHeaderMode` 的三个取值是 `DISALLOW`（默认，严格）、`ALLOW_EMPTY`、`ALLOW_ALL`。
 
-### 3.2.2 决策1：异常类型复用原有而不新建
+### 3.2.2 决策1：异常类型——复用 `IllegalArgumentException`，不新建类型
 
-**决策**：缺失必需列抛出既有的 `IllegalArgumentException`，不新增专门的异常类型。
+**决策**：缺失必需列抛出的异常类型为既有的（非受检）`IllegalArgumentException`，不新增 `MissingRequiredHeaderException` 之类的专门类型。
 
-**理由**：证据 #2 显示"表头结构有问题"这类错误在这个代码库里已有确立的惯例——构造期同步抛 `IllegalArgumentException`，"缺必需列"属于同一语义家族，理应沿用；新增公开异常类型是公开 API 面的扩张，一旦发布就要承担长期兼容负担，而需求原文没有要求调用方必须精确 `catch` 这个错误类型。
+**理由**：
+- 证据 #2 显示，"表头结构有问题"这一类错误（空列名、重复列名）在这个代码库里有一个已经确立的惯例：构造期同步抛 `IllegalArgumentException`。"缺必需列"在语义上和它们属于同一个家族——都是"表头这件事本身不对，还没轮到读数据"——理应沿用同一惯例，而不是为同一语义家族里的一个新成员单开一个异常体系，这会让调用方要处理两套不一致的异常分类方式。
+- 需求原文（01-3 §1）只要求"抛出一个清楚说明缺了哪些列的错误"，没有要求"调用方必须能用 `catch` 精确区分这个错误和其他配置错误"——01-3 §6 问题 1 本身就承认这是权衡，而不是需求的硬性约束，所以在"风格一致"与"类型精确"之间，优先选对现有用户影响更小、改动面更小的一侧。
+- 新增公开异常类型是公开 API 面的扩张，一旦发布就要承担长期兼容负担；而本次需求的"最小必要"范围（M2）不要求这个扩张。
 
-**错误消息格式**：`Missing required header name(s): [currency]. Header names found: [date, amount]`——多个列同时缺失时列出全部，而非只报第一个。
+**错误消息格式**（供决策表的"动作"精确引用）：
+```
+Missing required header name(s): [currency]. Header names found: [date, amount]
+```
+多个必需列同时缺失时，列出全部缺失列（不是只报第一个）：
+```
+Missing required header name(s): [currency, amount]. Header names found: [date]
+```
+与现有重复表头消息的措辞风格（`"The header contains a duplicate name: ... %s"`）保持同一文体：先说"缺了什么"，再附"实际有什么"方便调用方排查。
 
-### 3.2.3 决策2：大小写敏感尊重原代码逻辑
+### 3.2.3 决策2：大小写敏感性——尊重 `ignoreHeaderCase`，且零新增代码
 
-**决策**：必需列比较直接复用已建好的 `headerMap` 做 `containsKey()` 查找，从而自动尊重 `ignoreHeaderCase`，不单独引入大小写开关。
+**决策**：`requiredHeaders` 与实际解析出的表头之间的名字比较，直接复用已经建好的 `headerMap` 做 `containsKey()` 查找，从而自动尊重 `ignoreHeaderCase`；不单独为 `requiredHeaders` 引入一个独立的大小写开关。
 
-**理由**：证据 #3 显示 `headerMap` 本身在 `ignoreHeaderCase=true` 时就是大小写不敏感的，大小写语义是"免费"继承来的；这也让 `requiredHeaders` 的行为和用户已经熟悉的 `CSVRecord.get(String)` 的大小写语义保持一致。
+**理由**：
+- 证据 #3 显示 `headerMap` 本身在 `ignoreHeaderCase=true` 时就是一个大小写不敏感的 `TreeMap`。如果必需列检查写成 `Arrays.stream(requiredHeaders).filter(h -> !headerMap.containsKey(h))`，大小写语义就是"免费"继承来的，不需要再写一行与大小写相关的代码。
+- 这也让 `requiredHeaders` 的行为和用户已经熟悉的 `CSVRecord.get(String)` 按名访问的大小写语义完全一致（两者都是查同一个 `headerMap`）——对使用者来说，"大小写规则在哪都一样"比"每个新特性自己发明一套大小写规则"更可预测。
 
-### 3.2.4 决策3：必需列检查放在循环后且结构错误优先
+### 3.2.4 决策3：与重复/空列名检查的交互与报错顺序——必需列检查放在循环之后，结构错误优先
 
-**决策**：必需列缺失检查放在 `createHeaders()` 现有循环**结束之后**；同一次解析里若同时存在结构性错误（空列名/重复列名且未被允许）和必需列缺失，结构性错误先抛出，必需列检查根本不会被执行到。
+**决策**：必需列缺失检查，放在 `createHeaders()` 现有循环**结束之后**（`headerMap` 已经完整建好、`return` 之前）才执行；如果同一次解析里同时存在"结构性错误"（空列名且不允许、重复列名且不允许）和"必需列缺失"，**结构性错误先抛出**，必需列检查根本不会被执行到。
 
-**理由**：这个顺序谈不上是什么设计选择，用结构性限制来形容反而更准确——证据 #4 已经把这一点钉死了：必需列检查依赖**完整**的 `headerMap`，结构性错误检查在循环内部逐列发生、一旦命中就立刻 `throw`，循环都没跑完；反过来当结构性问题被允许时，循环跑完、`headerMap` 完整，必需列检查正常执行。
+**理由**：
+- 证据 #4 决定了这个顺序不是"设计选择"而是"结构性限制"：必需列检查依赖于**完整**的 `headerMap`，而结构性错误检查在循环内部逐列发生、一旦命中就立刻 `throw`，循环都没跑完，`headerMap` 还不完整——必需列检查没有机会，也没有能力在一个不完整的 `headerMap` 上给出有意义的判断。
+- 这个顺序不需要新增任何"优先级裁决"逻辑，只是老代码已有的 fail-fast 行为的自然延伸，符合"最小必要改动"（M2）的精神。
+- 反过来，当结构性问题被配置为"允许"（`allowMissingColumnNames=true`，或 `DuplicateHeaderMode.ALLOW_ALL`/`ALLOW_EMPTY`）时，循环不会在那一列上 `throw`，会继续跑完、建好完整的 `headerMap`，必需列检查正常执行——这意味着"重复列名被允许"不会影响必需列检查的结果（因为 `headerMap.put()` 对重复列名是无条件覆盖写入，最后一次出现的那一列的名字始终在 `headerMap` 里）。
 
-### 3.2.5 决策4：打印校验不改动
+### 3.2.5 决策4：不对称校验 `CSVPrinter`——写路径本次不改动
 
-**决策**：本次不在 `CSVPrinter`（写路径）增加任何 `requiredHeaders` 相关校验。
+**决策**：本次不在 `CSVPrinter`（写路径）增加任何 `requiredHeaders` 相关的校验。
 
-**理由**：需求原文描述的是"对账时上游 CSV 应当包含若干固定列"——读/解析场景，并非生成场景；没有需求驱动的对称设计是典型的过度设计（YAGNI 反例）。
+**理由**：
+- 需求原文（01-3 §1）描述的场景是"对账时上游 CSV 应当包含若干固定列"——这是**读**/解析场景，不是生成 CSV 的场景；`01-3` §3/§4 也已经确认 `CSVPrinter` 不受这次需求触碰。
+- 遵循 M2 的指示"先聚焦最小可行场景"：没有需求驱动的对称设计是 YAGNI（you aren't gonna need it）的典型反例——真正对称校验写路径需要额外定义"数据源里有没有这些列"这种和"表头"完全不同的概念（CSVPrinter 面对的是任意 `Appendable` + 任意数据行，不是"表头"这个概念），属于一次独立的需求，不应该在本次顺带做。
+- 在决策表设计里，`CSVPrinter` 相关的场景不会出现——这是"刻意排除在范围外"，不是遗漏。
 
-### 3.2.6 决策5：setHeader() 两种模式下校验行为一致
+### 3.2.6 决策5：`setHeader()` 两种模式下校验行为一致
 
-**决策**：无论表头是自动解析还是手工指定，必需列检查的时机、对象、行为完全一致。
+**决策**：无论表头是通过 `setHeader()`（自动从首行解析）还是 `setHeader(String...)`（手工指定），必需列检查的时机、对象、行为完全一致。
 
-**理由**：证据 #5 已确认两种模式最终都汇入同一段循环，必需列检查放在循环之后执行，天然对两种模式一视同仁——这是"读代码即可确认答案，不需要新决策"的问题，但仍写进 ADR，是为了在决策表里明确排除"表头模式"作为一个会影响结果的条件维度，避免把不影响结果的维度也堆进决策表。
+**理由**：证据 #5 已经确认两种模式最终都汇入 `createHeaders()` 里同一段"构建 `headerMap`"的循环，必需列检查放在循环之后执行，天然对两种模式一视同仁，不需要也不应该写任何 `if (isAutoHeader) {...} else {...}` 式的特殊分支。这是一个"读代码即可确认答案，不需要新决策"的问题——之所以仍然写进 ADR，是为了在决策表里明确排除"setHeader 模式"作为一个会影响结果的条件维度（避免 Round 0 提到的"把不影响结果的维度也当条件堆进表里"的常见错误）。
 
-### 3.2.7 决策6：配置了必需列但未启用表头模式在构造期报错
+### 3.2.7 决策6：`requiredHeaders` 配置了但未启用表头模式——在 `CSVFormat` 构造期（而不是解析期）报错
 
-**决策**：如果设置了非空的 `requiredHeaders`，但完全没有启用表头模式，这是声明形状本身自相矛盾的配置，应该在 `CSVFormat.Builder.validate()`（构造期）就同步抛出异常，不等到解析期才发现。
+**决策**：如果调用方设置了非空的 `requiredHeaders`，但 `format.getHeader() == null`（既没调用无参 `setHeader()`，也没手工指定表头），这是一个**声明形状本身自相矛盾**的配置——"要求有某些列存在"但"根本没有表头模式"——应该在 `CSVFormat.Builder.validate()`（构造 `CSVFormat` 对象时）就同步抛出 `IllegalArgumentException`，不需要等到 `CSVParser` 解析阶段才发现。
 
-**理由**：证据 #7 表明 `validate()` 的职责边界正是"只依赖声明本身，不依赖输入数据"的校验，这条规则完全符合这个边界；提前在构造期报错比等到解析期才报错对调用方更友好。错误消息格式：`Field requiredHeaders is set but field header is not set`。
+**理由**：
+- 证据 #7 表明 `validate()` 的职责边界是"只依赖声明本身，不依赖输入数据"的校验。"`requiredHeaders` 非空但 `headers` 为空"这条规则完全符合这个边界——判断它不需要看任何一行 CSV 数据。
+- 这是本次核查代码后才发现的、`01-3` 原文没有明说的必要决策点（`01-3` §6 的 5 个问题都是"运行期行为"层面的问题，没有覆盖"构造期配置自相矛盾"这一层）。按 M1 的授权，由我补充这条决策并写明依据。
+- 提前在构造期报错比等到解析期才报错对调用方更友好（更早发现配置错误，不用构造一个真实的 Reader/CSV 文件才能触发）。
 
-### 3.2.8 决策7：requiredHeaders 空值意味着功能未启用
+**错误消息格式**：
+```
+Field requiredHeaders is set but field header is not set
+```
+与 `validate()` 现有消息风格（"The quoteChar character and the delimiter cannot be the same"）保持一致的简洁陈述句式。
 
-**决策**：`setRequiredHeaders()` 传入 `null` 或长度为 0 的数组，语义都是"不启用必需列校验"，没有任何特殊含义，不借用 `setHeader()` 的"自动解析"特殊语义。
+### 3.2.8 决策7：`requiredHeaders` 的空值语义——`null` 或空数组 = 功能未启用，不借用 `setHeader()` 的"自动解析"特殊含义
 
-**理由**：证据 #6 指出 `setHeader(String...)` 的空数组特殊含义，是因为 `header` 字段同时承担"要不要启用表头模式"和"表头内容是什么"两个职责；`requiredHeaders` 不存在这种双重职责，没有理由模仿这个特殊语义，否则会让使用者误以为两者行为一致而踩坑。
+**决策**：`setRequiredHeaders()` 传入 `null` 或长度为 0 的数组，语义都是"不启用必需列校验"（等价于从未调用过这个方法），没有任何特殊含义。
+
+**理由**：
+- 证据 #6 指出 `setHeader(String...)` 的空数组**已经**有一个特殊含义（"自动从首行解析"）——这是因为 `header` 这个字段同时承担"要不要启用表头模式"和"表头内容是什么"两个职责。`requiredHeaders` 不存在这种双重职责（它只回答"这些列必须存在吗"），所以没有理由、也不应该模仿 `setHeader()` 的空数组特殊语义，否则会让使用者誤以为两者行为一致而踩坑。
+- 这条决策是一个"排除歧义"的边界声明，直接对应决策表里一条需要显式测试的边界场景（见 `01-2-decision-table.md` 表 2 的 R1 测试用例变体）。
 
 **决策记录汇总表**：
 
-| # | 开放问题 | 决策 | 依据 |
+| # | 开放问题 | 决策 | 决策依据的证据 |
 | --- | --- | --- | --- |
 | 1 | 异常类型 | 复用 `IllegalArgumentException`，固定消息格式 | 证据 #2 |
-| 2 | 大小写敏感性 | 查 `headerMap`，自动尊重 `ignoreHeaderCase` | 证据 #3 |
-| 3 | 与重复/空列名的交互顺序 | 必需列检查放循环后；结构性错误优先 | 证据 #4 |
-| 4 | 是否对称校验 `CSVPrinter` | 不做，本次范围排除 | 需求原文 |
+| 2 | 大小写敏感性 | 查 `headerMap`，自动尊重 `ignoreHeaderCase`，零新增代码 | 证据 #3 |
+| 3 | 与重复/空列名的交互顺序 | 必需列检查放循环后；结构性错误（未被允许时）优先抛出 | 证据 #4、#8 |
+| 4 | 是否对称校验 `CSVPrinter` | 不做，本次范围排除 | 需求原文 + M2 |
 | 5 | `setHeader()` 两种模式是否一致 | 一致，无需特殊分支 | 证据 #5 |
-| 6 | 配置了必需列但无表头模式 | 构造期报错 | 证据 #7 |
-| 7 | 空值语义 | `null`/空数组=未启用 | 证据 #6 |
+| 6 | `requiredHeaders` 设置但无表头模式 | 构造期（`validate()`）报错，不等到解析期 | 证据 #7 |
+| 7 | `requiredHeaders` 空值语义 | `null`/空数组=未启用，不借用 `setHeader()` 的特殊含义 | 证据 #6 |
 
 ## 3.3 决策表
 
@@ -117,129 +156,206 @@ graph LR
 
 ### 3.3.2 步骤1：识别所有条件
 
-| 表 | 条件编号 | 条件名称 | 来源 |
-| --- | --- | --- | --- |
-| 1 | T1-C1 | `requiredHeaders` 是否配置 | 决策 7 |
-| 1 | T1-C2 | `requiredHeaders` 数组自身是否"形状良好"（无空白/重复元素） | 比照现有校验 |
-| 1 | T1-C3 | 是否启用了表头模式 | 决策 6 |
-| 2 | T2-C1 | `requiredHeaders` 是否配置 | 需求原文 |
-| 2 | T2-C2 | 真实解析出的表头是否全部包含 `requiredHeaders` 的每一个名字 | `createHeaders()` 结构 |
-| 3 | T3-C1 | 是否存在"未被允许"的结构性表头问题 | 决策 3 |
-| 3 | T3-C2 | `ignoreHeaderCase` 是否为 `true` | 决策 2 |
-| 3 | T3-C3 | 必需列名字与实际表头名字大小写是否不同 | 决策 2 |
+逐张表列出，并注明条件来自哪份文档/哪条 ADR 决策。
 
-被显式排除、不作为条件的维度：`setHeader()` 自动解析 vs 手工指定（决策 5 已证明不影响结果）；`DuplicateHeaderMode` 的 `ALLOW_EMPTY` vs `ALLOW_ALL`（两者效果相同，合并为同一等价类）；`CSVPrinter` 相关条件（决策 4 已排除在范围外）。
+#### 表 1 的条件（CSVFormat 构造期，对应 3.2 决策 6、7）
+
+| 条件编号  | 条件名称                                             | 来源                                                   |
+| ----- | ------------------------------------------------ | ---------------------------------------------------- |
+| T1-C1 | `requiredHeaders` 是否配置（非 `null` 且长度 > 0）         | 2.3 需求原文 + ADR 决策 7                                |
+| T1-C2 | `requiredHeaders` 数组自身是否"形状良好"（无 `null`/空白/重复元素） | 比照 `CSVFormat.validate()` 现有对 `headers` 数组自身的重复/空名校验 |
+| T1-C3 | `format.getHeader() != null`（是否启用了表头模式，无论哪种模式）   | ADR 决策 6                                             |
+
+#### 表 2 的条件（CSVParser 解析期核心判断，对应 ADR 决策 1，假设表 1 已判定"构造成功"）
+
+| 条件编号 | 条件名称 | 来源 |
+| --- | --- | --- |
+| T2-C1 | `requiredHeaders` 是否配置（非 `null` 且长度 > 0） | 2.3 需求原文 |
+| T2-C2 | 真实解析/指定出来的 `headerRecord` 中，`requiredHeaders` 的每一个名字是否都能在最终建好的 `headerMap` 里找到 | `CSVParser.createHeaders()` 代码结构 |
+
+#### 表 3 的条件（交互场景，对应 ADR 决策 2、3）
+
+| 条件编号 | 条件名称 | 来源 |
+| --- | --- | --- |
+| T3-C1 | 本次解析中，是否存在"未被允许"的结构性表头问题（空列名且 `allowMissingColumnNames=false`，或重复列名且 `DuplicateHeaderMode=DISALLOW`） | ADR 决策 3 + `createHeaders()` fail-fast 循环结构 |
+| T3-C2 | `format.getIgnoreHeaderCase()` 是否为 `true` | ADR 决策 2 |
+| T3-C3 | 某个必需列的名字与实际解析出的表头名字，大小写是否不同（但归一化后相同，例如 `"Currency"` vs `"currency"`） | ADR 决策 2 |
+
+**被显式排除、不作为条件的维度**（Step 1 阶段就要讲清楚排除理由，呼应 Round 0 的"常见错误"）：
+
+- `setHeader()` 是自动解析首行还是手工指定表头——ADR 决策 5 已证明两者汇入同一段代码，不影响结果，**不是条件**，只在 Step 7 的测试数据里用两个变体各测一次（验证"确实不影响"这件事本身）。
+- `DuplicateHeaderMode` 的具体取值（`ALLOW_EMPTY` vs `ALLOW_ALL`）——两者的共同效果都是"不触发 fail-fast"，对必需列判断的影响完全相同，合并为 T3-C1 的"No"分支下的同一等价类，不拆成两个条件取值（指南 Step 6"Simplify Where Possible"的直接应用）。
+- `CSVPrinter` 相关的任何条件——ADR 决策 4 已排除在范围外。
 
 ### 3.3.3 步骤2：定义条件取值
 
-| 条件 | 可能取值 |
-| --- | --- |
-| T1-C1 | `Set`（非空数组）/ `Unset`（`null` 或空数组） |
-| T1-C2 | `WellFormed` / `Malformed`（含空白元素或内部重复） |
-| T1-C3 | `HeaderEnabled` / `NoHeader` |
-| T2-C1 | `Set` / `Unset` |
-| T2-C2 | `AllPresent` / `SomeMissing`（1 个或多个缺失，判定结果等价，消息内容在测试数据层面区分） |
-| T3-C1 | `Preempted`（存在未被允许的结构性问题）/ `Clean` |
-| T3-C2 | `true` / `false` |
-| T3-C3 | `CaseDiffers` / `CaseSame` |
+| 条件 | 可能取值 | 备注 |
+| --- | --- | --- |
+| T1-C1 | `Set`（非空数组） / `Unset`（`null` 或空数组，按 ADR 决策 7 两者等价） | 二元 |
+| T1-C2 | `WellFormed` / `Malformed`（含 `null` 元素、空白元素、或数组内部重复） | 二元，仅在 T1-C1=Set 时有意义 |
+| T1-C3 | `HeaderEnabled`（`getHeader() != null`） / `NoHeader`（`getHeader() == null`） | 二元 |
+| T2-C1 | `Set` / `Unset` | 与 T1-C1 同一概念，承接表 1 的"构造成功"前提 |
+| T2-C2 | `AllPresent` / `SomeMissing`（1 个或多个缺失，消息格式需要列全，但判定结果等价，属于同一等价类——测试数据层面再细分） | 仅在 T2-C1=Set 时有意义 |
+| T3-C1 | `Preempted`（存在未被允许的结构性问题，会 fail-fast） / `Clean`（无结构性问题，或问题被配置允许） | 二元 |
+| T3-C2 | `IgnoreCase=true` / `IgnoreCase=false` | 二元，仅在 T3-C1=Clean 时有意义 |
+| T3-C3 | `CaseDiffers` / `CaseSame` | 二元，仅在 T3-C1=Clean 时有意义；"CaseSame"分支下 T3-C2 取值不影响结果（与 T2 的 AllPresent 等价类重合，不重复建规则） |
+
+按指南 Step 2 的要求做精确化检查："credit score above 700 可测，good credit score 不可测"——对照：
+
+- T2-C2 的 `SomeMissing` 不是模糊描述，在 Step 7 会具体化为"缺 1 列" / "缺全部列"两种测试数据，但判定结果（动作）相同，属于同一规则的不同测试实例，不是不同规则。
+- T3-C3 的 `CaseDiffers` 具体化为"必需列声明为 `Currency`，实际表头是 `currency`"这种可直接写进测试数据的例子，不是"大小写有点不一样"这种模糊说法。
 
 ### 3.3.4 步骤3：计算规则数
 
-| 表 | 理论笛卡尔积 | 化简后 |
-| --- | --- | --- |
-| 表1 | 2×2×2=8 | T1-C1=Unset 时后两个条件都是 don't-care，合并为 1 条；T1-C2=Malformed 时 T1-C3 也是 don't-care，再合并——**最终 4 条** |
-| 表2 | 2×2=4 | T2-C1=Unset 时 T2-C2 是 don't-care——**最终 3 条** |
-| 表3 | 2×2×2=8 | T3-C1=Preempted 时后两个条件都是 don't-care；T3-C3=CaseSame 时 T3-C2 也是 don't-care——**最终 4 条** |
+| 表   | 条件与取值                              | 理论笛卡尔积 | 消去"N/A"（某条件在上游条件取另一分支时无意义）后的有效规则数                                                                                                                                                                                |
+| --- | ---------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 表 1 | T1-C1(2) × T1-C2(2) × T1-C3(2) = 8 | 8      | T1-C1=Unset 时 T1-C2/T1-C3 都是 don't-care → 4 种组合合并为 1 条规则；剩余 T1-C1=Set 的 4 种组合全部有效 → **1 + 4 = 5**，但其中 T1-C2=Malformed 时 T1-C3 也是 don't-care（形状错误本身就该报错，不用管有没有 header）→ 再合并 2 条为 1 条 → **最终 4 条规则**（见 Step 6 的化简） |
+| 表 2 | T2-C1(2) × T2-C2(2) = 4            | 4      | T2-C1=Unset 时 T2-C2 是 don't-care → 2 种组合合并为 1 条 → **最终 3 条规则**                                                                                                                                                   |
+| 表 3 | T3-C1(2) × T3-C2(2) × T3-C3(2) = 8 | 8      | T3-C1=Preempted 时 T3-C2/T3-C3 都是 don't-care → 4 种组合合并为 1 条；T3-C3=CaseSame 时 T3-C2 是 don't-care（大小写规则不生效也无所谓，反正本来就相同）→ 再合并 2 条为 1 条 → **最终 1 + 1 + 2 = 4 条规则**                                                    |
 
-三张表合计 **11 条规则**，是后续验收测试用例的基础（测试数据层面会在"缺列数量"等维度上再做变体，但不增加新规则）。
+三张表合计 **11 条规则** = 11 个验收测试用例的基础（Step 7 会在"缺列数量"等维度上再做数据层面的变体，但不增加新规则）。
 
 ### 3.3.5 步骤4：识别所有动作
 
-| 动作 | 描述 | 对应异常/消息 |
+| 动作编号 | 动作描述 | 对应异常类型与消息（来自 3.2） |
 | --- | --- | --- |
-| A-BUILD-OK | `CSVFormat` 构造成功 | 无异常 |
-| A-BUILD-FAIL-SHAPE | 构造失败：数组自身形状不合法 | `IllegalArgumentException`，指出具体是哪个元素非法 |
-| A-BUILD-FAIL-NOHEADER | 构造失败：设置了必需列但未启用表头模式 | `IllegalArgumentException("Field requiredHeaders is set but field header is not set")` |
-| A-PARSE-OK | `CSVParser` 构造成功 | 无异常 |
-| A-PARSE-FAIL-MISSING | 构造失败：必需列缺失 | `IllegalArgumentException("Missing required header name(s): [...]. Header names found: [...]")` |
-| A-PARSE-FAIL-STRUCTURAL | 构造失败：既有结构性表头错误，必需列检查**未被执行** | 沿用现有消息，**不会**出现"Missing required header"字样 |
+| A-BUILD-OK | `CSVFormat` 构造成功，返回不可变对象 | 无异常 |
+| A-BUILD-FAIL-SHAPE | `CSVFormat` 构造失败：`requiredHeaders` 数组自身形状不合法 | `IllegalArgumentException`，消息指出具体是哪个元素非法（空白/重复） |
+| A-BUILD-FAIL-NOHEADER | `CSVFormat` 构造失败：设置了 `requiredHeaders` 但未启用表头模式 | `IllegalArgumentException("Field requiredHeaders is set but field header is not set")` |
+| A-PARSE-OK | `CSVParser` 构造成功，`getHeaderMap()`/`iterator()` 可正常使用，之后 `CSVRecord.get(...)` 对 required 列必然命中 | 无异常 |
+| A-PARSE-FAIL-MISSING | `CSVParser` 构造失败：必需列缺失 | `IllegalArgumentException("Missing required header name(s): [...]. Header names found: [...]")`，在拿到第一条 `CSVRecord` 之前抛出 |
+| A-PARSE-FAIL-STRUCTURAL | `CSVParser` 构造失败：既有的结构性表头错误（空列名/重复列名），必需列检查**未被执行** | 沿用现有消息（"A header name is missing in ..."或"The header contains a duplicate name..."），**不会**出现"Missing required header"字样——这是验证"报错顺序"的关键断言点 |
 
 ### 3.3.6 步骤5：填充决策表
 
-**表 1：CSVFormat 构造期配置自洽性**
+#### 表 1：CSVFormat 构造期配置自洽性（Extended Decision Table）
 
-| 规则 | T1-C1 | T1-C2 | T1-C3 | 动作 |
+| 规则 | T1-C1 requiredHeaders | T1-C2 数组形状 | T1-C3 header 是否启用 | 动作 |
 | --- | --- | --- | --- | --- |
 | R1.1 | Unset | – | – | A-BUILD-OK |
 | R1.2 | Set | Malformed | – | A-BUILD-FAIL-SHAPE |
 | R1.3 | Set | WellFormed | NoHeader | A-BUILD-FAIL-NOHEADER |
 | R1.4 | Set | WellFormed | HeaderEnabled | A-BUILD-OK |
 
-**表 2：CSVParser 解析期必需列缺失核心判断**
+（"–"= don't care，对应 Step 6 的化简；详见下方 Step 6 说明。）
 
-| 规则 | T2-C1 | T2-C2 | 动作 |
+#### 表 2：CSVParser 解析期必需列缺失核心判断（Extended Decision Table，最小可行场景）
+
+| 规则 | T2-C1 requiredHeaders | T2-C2 是否全部在 headerMap 中找到 | 动作 |
 | --- | --- | --- | --- |
-| R2.1 | Unset | – | A-PARSE-OK（回归基线） |
+| R2.1 | Unset | – | A-PARSE-OK（现有行为不变，回归基线） |
 | R2.2 | Set | AllPresent | A-PARSE-OK |
 | R2.3 | Set | SomeMissing | A-PARSE-FAIL-MISSING |
 
-**表 3：必需列判断与结构性校验/大小写的交互**
+（本表的前提：表 1 已判定为 A-BUILD-OK，即 `CSVFormat` 对象已合法构造出来。）
 
-| 规则 | T3-C1 | T3-C2 | T3-C3 | 动作 |
+#### 表 3：必需列判断与结构性校验/大小写的交互（Rule Based Decision Table，扩大场景）
+
+| 规则 | T3-C1 是否被结构性问题抢先 | T3-C2 ignoreHeaderCase | T3-C3 大小写是否不同 | 动作 |
 | --- | --- | --- | --- | --- |
-| R3.1 | Preempted | – | – | A-PARSE-FAIL-STRUCTURAL（必需列检查未执行） |
-| R3.2 | Clean | – | CaseSame | A-PARSE-OK |
-| R3.3 | Clean | true | CaseDiffers | A-PARSE-OK（证明决策2：尊重 `ignoreHeaderCase`） |
-| R3.4 | Clean | false | CaseDiffers | A-PARSE-FAIL-MISSING（默认精确匹配语义） |
+| R3.1 | Preempted | – | – | A-PARSE-FAIL-STRUCTURAL（必需列检查未执行，T2 的结果被"抢跑"） |
+| R3.2 | Clean | – | CaseSame | A-PARSE-OK（与 T2-R2.2 同一等价类，用于确认"没有大小写差异时，ignoreHeaderCase 的取值不影响结果"） |
+| R3.3 | Clean | true | CaseDiffers | A-PARSE-OK（证明 ADR 决策 2：必需列比较尊重 `ignoreHeaderCase`） |
+| R3.4 | Clean | false | CaseDiffers | A-PARSE-FAIL-MISSING（证明：不开 `ignoreHeaderCase` 时，大小写不同 = 视为缺失，回归既有精确匹配语义） |
+
+（本表的前提：表 1 已判定为 A-BUILD-OK，且 T2-C1=Set，即确实配置了 `requiredHeaders`——否则谈不上"大小写差异"这个概念。）
 
 ### 3.3.7 步骤6：尽可能化简
 
-- **R1.1 的后两个条件标"–"**：`requiredHeaders` 根本没配置时，它的数组形状、表头是否启用都与它无关——这是条件之间"存在依赖关系"（T1-C1 是门控条件）的体现，并非违反条件独立性假设。
-- **R1.2 的 T1-C3 标"–"**：数组形状本身不合法是一个纯粹"自己和自己"的校验，不需要等到看了表头是否启用才决定要不要报错——形状校验优先于交叉字段校验。
-- **R2.1 的 T2-C2 标"–"**：没有配置必需列，"是否缺失"这个概念不存在，这条规则本质上是"既有行为的回归基线"，确保新功能是纯新增、向后兼容的。
-- **R3.1 的后两个条件标"–"**：这是**最重要的一处化简**，对应决策3的核心论点——结构性问题一旦"抢跑"，必需列检查的代码**根本没有机会执行**，所以大小写相关的条件在这条规则下，说"碰巧不影响结果"还不够准确，准确地说，是"在因果链条上压根没被读到"。
-- **R3.2 的 T3-C2 标"–"**：大小写完全相同时，`headerMap` 用普通匹配或大小写不敏感匹配都会命中同一个键，`ignoreHeaderCase` 的取值不改变结果。
+应用指南"若某条件在特定规则下对结果没有影响，标记为 don't care（用"–"表示）"的原则，已经体现在上面的表格里。逐条说明化简依据，保证每一个"–"都有理由，而不是偷懒：
 
-检查后结论：**没有**逻辑上不可能的组合需要剔除——这点在填表前已经靠读真实源码的控制流核实过，而非凭空枚举再筛选。
+- **R1.1 的 T1-C2/T1-C3 标"–"**：`requiredHeaders` 根本没配置时，它的数组形状、以及表头是否启用都与它无关——这是条件之间"存在依赖关系"（T1-C1 是 T1-C2/T1-C3 的"门控条件"）的直接体现，不是条件独立性假设的违反（指南 Limitations 提到的"Assumption of condition independence"陷阱，这里是主动识别并处理了依赖关系，而不是忽略它）。
+- **R1.2 的 T1-C3 标"–"**：数组形状本身不合法（比如 `requiredHeaders` 里有重复元素）是一个纯粹"自己和自己"的校验，不需要也不应该等到看了 T1-C3 才决定要不要报错——这是 `01-3-adr.md` 决策 6/7 里"形状校验优先于交叉字段校验"的具体落地，理由见 ADR 原文"检查最简单、最独立的不变式优先"。
+- **R2.1 的 T2-C2 标"–"**：没有配置必需列，"是否缺失"这个概念不存在，这条规则本质上是"既有行为的回归基线"，用于确保新功能是**纯新增、向后兼容**的（对应 `01-3-impact-analysis.md` §5 的"向后兼容的 open-host-service 式演进"结论）。
+- **R3.1 的 T3-C2/T3-C3 标"–"**：这是本文档里**最重要的一处化简**，直接对应 `01-3-adr.md` 决策 3 的核心论点——结构性问题一旦"抢跑"（preempted, fail-fast），必需列检查的代码**根本没有机会执行**，所以 `ignoreHeaderCase`、大小写差异这些条件在这条规则下不是"碰巧不影响结果"，而是"在因果链条上压根没被读到"。这正是指南里"若结果与某条件无关，该条件可标 don't care"的教科书式场景。
+- **R3.2 的 T3-C2 标"–"**：大小写完全相同时，`headerMap` 用普通匹配或大小写不敏感匹配都会命中同一个键，`ignoreHeaderCase` 的取值不改变结果——避免把"大小写相同 + ignoreHeaderCase=true"和"大小写相同 + ignoreHeaderCase=false"拆成两条规则（本来是 2×2=4 种组合，因为 T3-C3=CaseSame 分支下 T3-C2 不影响结果，合并成 1 条规则，只有 T3-C3=CaseDiffers 分支才需要展开 T3-C2 的两个取值）——这就是 Step 3 里"8 → 4"的具体来源。
+
+**是否存在"不可能组合"需要剔除？**（指南 Best Practices 第 4 条）——检查后结论：**没有**。T1/T2/T3 三张表里所有保留下来的规则都对应真实可达的程序状态，不存在"逻辑上不可能"的组合需要剔除，这点在填表前已经靠"读真实源码 `createHeaders()`/`validate()` 的控制流"核实过（而不是凭空枚举再筛选）。
 
 ### 3.3.8 步骤7：将规则转为测试用例
 
-以下给出三张表里有代表性的若干条用例的详细展开，剩余用例的要点收进文末汇总表（覆盖全部 11 条规则，没有信息损失，只是不逐条展开叙述）。
+> 按用户 M3 的要求，这里只给出结构化的文字/表格描述（前置条件、测试数据、预期结果），不给 JUnit 骨架代码。
+> 测试用例编号与规则编号对应（`TC-1.x` ↔ `R1.x`），同一条规则下如有多个测试数据变体，用 `a/b/c` 区分——变体不增加新规则，只是同一判定逻辑下的不同输入，用于覆盖"消息内容要列全""两种 setHeader 模式确实等价""ALLOW_ALL 对必需列判断没有副作用"等需要具体数据才能验证的细节。
 
-**TC-1.3（对应 R1.3）—— 设置了必需列但完全没有启用表头模式**
-- 前置条件：`CSVFormat.Builder` 不调用任何 `setHeader(...)` 变体。
+### 表 1 对应的测试用例
+
+**TC-1.1（对应 R1.1）—— 未设置必需列，构造不受影响（回归基线）**
+- 前置条件：`CSVFormat.Builder` 正常设置 `delimiter`、`header` 等已有字段，不调用 `setRequiredHeaders(...)`。
+- 测试数据：任意一个有效的 `CSVFormat.Builder` 配置（例如 `DEFAULT.builder().setHeader("date", "amount", "currency")`）。
+- 预期结果：`build()`/`get()` 正常返回 `CSVFormat` 实例，`getRequiredHeaders()` 返回 `null` 或空数组。
+
+**TC-1.2a（对应 R1.2）—— `requiredHeaders` 内部有重复元素**
+- 前置条件：`setHeader("date", "amount", "currency")`。
+- 测试数据：`setRequiredHeaders("currency", "currency")`。
+- 预期结果：构造 `CSVFormat` 时抛出 `IllegalArgumentException`，消息指出 `requiredHeaders` 内部存在重复元素 `"currency"`。
+
+**TC-1.2b（对应 R1.2）—— `requiredHeaders` 内部有空白/`null` 元素**
+- 测试数据：`setRequiredHeaders("currency", null)` 或 `setRequiredHeaders("currency", "")`。
+- 预期结果：抛出 `IllegalArgumentException`，消息指出 `requiredHeaders` 包含空白元素。
+
+**TC-1.3（对应 R1.3）—— 设置了必需列，但完全没有启用表头模式**
+- 前置条件：`CSVFormat.Builder` **不**调用任何 `setHeader(...)` 变体（`header` 字段保持 `null`）。
 - 测试数据：`setRequiredHeaders("currency")`。
 - 预期结果：构造 `CSVFormat` 时抛出 `IllegalArgumentException("Field requiredHeaders is set but field header is not set")`。
 
+**TC-1.4a（对应 R1.4）—— 必需列 + 自动解析表头模式，构造成功**
+- 测试数据：`setHeader().setRequiredHeaders("currency")`（`setHeader()` 无参，自动从首行解析）。
+- 预期结果：构造成功，`getRequiredHeaders()` 返回 `["currency"]`。
+
+**TC-1.4b（对应 R1.4）—— 必需列 + 手工指定表头模式，构造成功**
+- 测试数据：`setHeader("date", "amount", "currency").setRequiredHeaders("currency")`。
+- 预期结果：构造成功——与 TC-1.4a 一起，验证 ADR 决策 5（两种模式在这一步行为一致）。
+
+### 表 2 对应的测试用例
+
+**TC-2.1（对应 R2.1）—— 不启用必需列功能，解析行为与现状完全一致（回归）**
+- 前置条件：`CSVFormat` 不设置 `requiredHeaders`，`setHeader()` 自动解析首行。
+- 测试数据：CSV 文本 `"date,amount\n2026-01-01,100\n"`。
+- 预期结果：`CSVParser` 正常构造，`getRecords()` 返回 1 条记录，`record.get("date")` 正常工作——证明纯新增、不破坏任何现状。
+
+**TC-2.1b（边界场景，对应 ADR 决策 7）—— `requiredHeaders` 传空数组，等价于未启用**
+- 测试数据：`setHeader("date", "amount").setRequiredHeaders()`（零长度可变参数）。
+- 预期结果：构造成功，行为等同于 TC-2.1——专门验证"空数组 ≠ `setHeader()` 式的特殊含义"（避免使用者按 `setHeader()` 的直觉误以为空数组会触发某种自动推断必需列的行为）。
+
+**TC-2.2（对应 R2.2）—— 必需列全部存在，解析成功**
+- 前置条件：`setHeader().setRequiredHeaders("date", "amount", "currency")`。
+- 测试数据：CSV 文本 `"date,amount,currency\n2026-01-01,100,USD\n"`。
+- 预期结果：`CSVParser` 构造成功，`record.get("currency")` 返回 `"USD"`。
+
 **TC-2.3a（对应 R2.3）—— 缺 1 个必需列**
 - 测试数据：`setHeader().setRequiredHeaders("date", "amount", "currency")`；CSV 文本 `"date,amount\n2026-01-01,100\n"`（缺 `currency`）。
-- 预期结果：抛出 `IllegalArgumentException("Missing required header name(s): [currency]. Header names found: [date, amount]")`，且这个异常必须发生在任何一条记录可被取到之前。
+- 预期结果：`CSVParser` 构造函数（或对应的 `parse(...)` 工厂方法）抛出 `IllegalArgumentException("Missing required header name(s): [currency]. Header names found: [date, amount]")`，且这个异常必须发生在**任何一条 `CSVRecord` 可被取到之前**（可以通过断言"异常发生在 `parse(...)` 调用本身，而不是之后的 `iterator().next()`"来验证 01-3 §1 的核心约束）。
+
+**TC-2.3b（对应 R2.3）—— 同时缺多个必需列，消息要列全**
+- 测试数据：`setRequiredHeaders("date", "amount", "currency")`；CSV 文本 `"date\n2026-01-01\n"`（缺 `amount`、`currency`）。
+- 预期结果：抛出 `IllegalArgumentException("Missing required header name(s): [amount, currency]. Header names found: [date]")`——验证"清楚说明缺了哪些列"这条需求原话，不是只报第一个就了事。
+
+### 表 3 对应的测试用例
 
 **TC-3.1a（对应 R3.1）—— 空列名抢先于必需列检查报错**
-- 测试数据：`setHeader().setRequiredHeaders("currency")`；CSV 文本 `"date,,currency\n2026-01-01,x,USD\n"`（第二列是空列名）。
-- 预期结果：抛出**现有的**空列名异常，消息中**不**出现"Missing required header"字样——用于断言必需列检查确实没有被执行到。
+- 前置条件：`setHeader().setRequiredHeaders("currency")`，`allowMissingColumnNames` 保持默认（`false`）。
+- 测试数据：CSV 文本 `"date,,currency\n2026-01-01,x,USD\n"`（第二列是空列名）。
+- 预期结果：抛出**现有的**空列名异常（`"A header name is missing in [...]"`），消息中**不**出现 `"Missing required header"` 字样——用于断言"必需列检查确实没有被执行到"，验证 ADR 决策 3。
 
-**TC-3.3（对应 R3.3）—— `ignoreHeaderCase=true` 时必需列比较忽略大小写**
-- 测试数据：`ignoreHeaderCase(true).setRequiredHeaders("Currency")`；CSV 表头实际为 `"currency"`。
-- 预期结果：构造成功——证明必需列检查复用了 `headerMap` 的大小写不敏感语义。
+**TC-3.1b（对应 R3.1）—— 重复列名（默认严格模式）抢先于必需列检查报错**
+- 测试数据：`setHeader().setRequiredHeaders("currency")`；CSV 文本 `"currency,currency\n1,2\n"`，`duplicateHeaderMode` 保持默认 `DISALLOW`。
+- 预期结果：抛出现有的重复列名异常，消息中不出现必需列相关字样。
 
-**全部 11 条规则 → 测试用例汇总表**：
+**TC-3.1c（对应 R3.1 的"Clean"反例，用于证明 ALLOW_ALL 不会意外影响必需列判断）**
+- 测试数据：`setHeader().setRequiredHeaders("currency").setDuplicateHeaderMode(DuplicateHeaderMode.ALLOW_ALL)`；CSV 文本 `"currency,currency\n1,2\n"`。
+- 预期结果：**不**抛出结构性异常（重复被允许），且必需列检查正常执行并通过（因为 `headerMap` 里 `"currency"` 这个键最终存在，指向最后一次出现的列）——这条严格来说是 R3.2（Clean 分支）的一个测试数据变体，放在这里便于和 TC-3.1a/b 对照阅读。
 
-| 表 | 规则 | 测试要点 |
-| --- | --- | --- |
-| 1 | R1.1 | 未设置必需列，构造不受影响（回归基线） |
-| 1 | R1.2 | `requiredHeaders` 内部有重复/空白元素 → 构造失败 |
-| 1 | R1.3 | 设置了必需列但无表头模式 → 构造失败 |
-| 1 | R1.4 | 必需列 + 表头模式都启用（自动解析/手工指定两种变体） → 构造成功 |
-| 2 | R2.1 | 不启用必需列功能 → 解析行为与现状一致（回归，含空数组变体） |
-| 2 | R2.2 | 必需列全部存在 → 解析成功 |
-| 2 | R2.3 | 缺 1 个 / 缺多个必需列（消息要列全） → 解析失败 |
-| 3 | R3.1 | 空列名 / 重复列名（严格模式）抢先报错；`ALLOW_ALL` 模式下不抢跑 |
-| 3 | R3.2 | 大小写相同，`ignoreHeaderCase` 取值不影响结果 |
-| 3 | R3.3 | `ignoreHeaderCase=true` 时大小写不同仍算存在 |
-| 3 | R3.4 | `ignoreHeaderCase=false`（默认）时大小写不同算缺失 |
+**TC-3.2（对应 R3.2）—— 大小写相同，`ignoreHeaderCase` 取值不影响结果**
+- 测试数据两组：(a) `ignoreHeaderCase(false)`；(b) `ignoreHeaderCase(true)`；两组都用 `setRequiredHeaders("currency")` + CSV 表头 `"currency"`（大小写完全相同）。
+- 预期结果：两组都构造成功——验证"没有大小写差异时，这个开关确实无关"，这正是 Step 6 把这两种组合合并成一条规则的依据。
 
-这份汇总表共同构成 `required headers` 需求的验收标准：既覆盖需求原文的核心诉求（表2），也覆盖代码核查后发现的必要前置防线（表1），还覆盖开放问题中真正会改变外部可观察行为的两个交互场景（表3）。下一章会把这些测试用例落地成真正可执行的 Approved Scenarios 自动化测试。
+**TC-3.3（对应 R3.3）—— `ignoreHeaderCase=true` 时，必需列比较忽略大小写（证明 ADR 决策 2）**
+- 测试数据：`ignoreHeaderCase(true).setRequiredHeaders("Currency")`；CSV 表头实际为 `"currency"`（小写）。
+- 预期结果：构造成功，`record.get("Currency")`（任意大小写）都能取到值——证明必需列检查复用了 `headerMap` 的大小写不敏感语义。
+
+**TC-3.4（对应 R3.4）—— `ignoreHeaderCase=false`（默认）时，大小写不同 = 视为缺失**
+- 测试数据：不调用 `ignoreHeaderCase(...)`（沿用默认值 `false`）或显式调用 `ignoreHeaderCase(false)`，二者等价；**且**设置 `.setRequiredHeaders("Currency")`；CSV 表头实际为 `"currency"`（小写）。
+- 预期结果：抛出 `IllegalArgumentException("Missing required header name(s): [Currency]. Header names found: [currency]")`——证明在精确匹配模式下，`Currency` 和 `currency` 是两个不同的名字，不会被静默地当成同一列，回归既有精确匹配语义。
 
 ## 3.4 动手练习提示词
 
@@ -329,7 +445,7 @@ graph LR
 **产出文件**：把这份 ADR 保存为当前工作目录下的
 
 ```
-01-3-adr.md
+adr.md
 ```
 
 （Markdown 格式），结构建议：
@@ -353,7 +469,7 @@ graph LR
 **产出文件**：把这份决策表和测试用例保存为当前工作目录下的
 
 ```
-01-2-decision-table.md
+decision-table.md
 ```
 （Markdown 格式），结构建议：
 - 开头一段：决策表类型选择与理由，以及（如果拆成多张表）各表之间关系的说明图/说明文字
@@ -367,7 +483,7 @@ graph LR
 - [ ] 没有把一个条件的"取值集合"写得含糊不清（例如"大小写差异较大"这种无法直接变成测试数据的说法）。
 - [ ] 每一条规则都对应一个真实可达的程序状态，不存在"理论组合但实际不可能发生"却没有被剔除或说明的规则。
 - [ ] 第 7 步产出的测试用例，任何一个拿去跟同事复述，对方都能明确说出"这个测试用例在验证哪条业务规则、输入什么、期望输出什么"，不需要再追问你。
-- [ ] 两份产出文件（`01-3-adr.md` 和 `01-2-decision-table.md`）都是独立可读的 Markdown 文档，不依赖你在对话里说过的话才能看懂。
+- [ ] 两份产出文件（`adr.md` 和 `decision-table.md`）都是独立可读的 Markdown 文档，不依赖你在对话里说过的话才能看懂。
 
 # 附录 A：决策表测试法指南（节选自 "What Is Decision Table Testing? Types and Examples"）
 
