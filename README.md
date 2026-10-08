@@ -10,7 +10,7 @@
 
 这就是本书要回答的唯一问题。
 
-本书的工具链选择同样服务于"token 不自由"这个现实约束：全书实操以 **OpenCode v2 + DeepSeek V4.1 Flash** 为实操锚点，这个组合不需要国际信用卡、不依赖受限的国际网络访问，对国内 token 不自由的读者更现实。但本书讨论的方法论本身不绑定特定工具和模型——书中给出的每一条提示词，换成你自己常用的、国内外口碑良好的 AI Coding Agent 搭配大模型（如 Claude Code 搭配 Opus 5.5、Codex CLI 搭配 GPT 6.1 Sol、OpenCode V2 搭配 GLM 5.3、Pi 搭配 DeepSeek v4 pro、CodeBuddy 搭配 GLM 5.3 等）都应该能跑通。
+本书的工具链选择同样服务于"token 不自由"这个现实约束：全书实操以 **OpenCode v2 + DeepSeek V4.1 Flash** 为实操锚点，这个组合不需要国际信用卡、不依赖受限的国际网络访问，对国内 token 不自由的读者更现实。但本书讨论的方法论本身不绑定特定工具和模型——书中给出的每一条提示词，换成你自己常用的、国内外口碑良好的 AI Coding Agent 搭配大模型（如 Claude Code 搭配 Opus 5.5、Codex CLI 搭配 GPT 6.1 Sol、OpenCode V2 搭配 GLM 5.3、Pi 搭配 DeepSeek v4 pro、CodeBuddy 搭配 GLM 5.3 等）都应该能跑通。实际上，本书在撰写过程中的实战环节，主要使用了 Claude Code 搭配 Sonnet 5 以及 OpenCode v2 搭配 DeepSeek V4.1 Flash。
 
 ## 本书方法论：理解 → 设计 → 构建 → 评测，四元素闭环
 
@@ -18,12 +18,12 @@
 
 1. **理解**代码所承载的复杂业务逻辑——用 [DDD（Domain-Driven Design）](https://www.oreilly.com/library/view/learning-domain-driven-design/9781098100124/) 的 strategic design，把一个陌生棕地代码库拆成核心（core）、通用（generic）、支撑（supporting）子域，分清主次，再分析新需求会牵动哪些子域、哪些类。
 2. **设计**面向验收测试的 spec——用 [Decision Table Testing（决策表测试法）](https://www.virtuosoqa.com/post/decision-table-testing) 从业务规则系统性地推导验收测试用例，保证不遗漏、不重复，不必靠直觉随手列几个例子凑数。
-3. **构建**面向业务不变式的自动化验收测试——用 [Approved Scenarios](https://lexler.github.io/augmented-coding-patterns/patterns/approved-scenarios/) 模式（结合 TDD 的红绿重构节奏）针对不变的业务事实，把每一条验收测试用例落地为一份人类可读、Agent 真正执行的 markdown fixture，解决"Agent 生成的测试和生产代码都不可信"的问题。
+3. **构建**面向业务不变式的自动化验收测试——用 [Approved Scenarios](https://lexler.github.io/augmented-coding-patterns/patterns/approved-scenarios/) 模式（结合 TDD 的红绿重构节奏）针对不变的业务事实，把每一条验收测试用例落地为一份产品经理也能读懂的、Agent 真正执行的 markdown fixture，解决"Agent 生成的测试和生产代码都不可信"的问题。
 4. **评测**自动化验收测试确实保护了生产代码——用 [Fault Injection Testing](https://www.geeksforgeeks.org/software-engineering/fault-injection-testing-software-engineering/)（故障注入测试）在生产代码里精心注入与每条测试保护意图语义对应的故障，验证测试确实会变红、报错信息确实对应，排除"测试形同虚设"的可能。
 
 在 AI Coding 时代维护棕地项目，无论是开发新需求，还是修 bug，都离不开上述四个基本要素。
 
-这条链路背后有一条共同的方法论：**理解、设计、构建、评测这四步探索未知或复杂问题的每一步开头，都用"假设体检+追问"风格的提示词来与 Agent 澄清诉求——列出隐含假设、列出缺失信息、指出常见错误、只问最关键的问题——再给出带推荐理由的方案，拒绝上来就甩出一个看似权威、实则谁都能套用的通用答案**。本书第 2～5 章的实操过程会反复示范这套"假设体检+追问"风格的提示词，这也是本书希望读者在自己的实践中养成的工作习惯。
+这条链路背后有一条共同的方法论：**理解、设计、构建、评测这四步探索未知或复杂问题的每一步开头，都用"假设体检+追问"风格的提示词来与 Agent 澄清诉求**——列出隐含假设、列出缺失信息、指出常见错误、只问最关键的问题——再给出带推荐理由的方案，拒绝上来就甩出一个看似权威、实则谁都能套用的通用答案。本书第 2～5 章的实操过程会反复示范这套"假设体检+追问"风格的提示词，这也是本书希望读者在自己的实践中养成的工作习惯。
 
 本书以 [Apache Commons CSV](https://github.com/apache/commons-csv) 为唯一贯穿案例，用同一个新需求走完理解、设计、构建、评测四个环节。这个新需求是给 `CSVFormat.Builder` 新增 `setRequiredHeaders(String...)`，以便在解析时一旦发现 CSV 表头缺少这些列，就在读第一条记录之前抛出一个清楚说明缺了哪些列的错误，而不是等业务代码调用 `record.get("currency")` 时才报错。
 
@@ -132,7 +132,7 @@
 
 ### 1. 这本书适合什么人看？
 
-本书假定读者已经在用 Agent（如 OpenCode v2、Claude Code、Codex CLI 等）写代码，并且已经踩过"Agent 生成的代码看着对、跑不对"这类坑。本书面向的是**用 Agent 维护需要长期维护的传统非智能软件的开发者**——你维护的是一个已经上线、有存量用户、有历史契约的普通代码库——开发 agent 系统本身，不在这本书的讨论范围内。如果你还没实际用过 Agent 辅助编程工具，建议先上手体验一段时间，再来看本书会更有共鸣。本书尤其适合国内 token 不自由、需要在有限调用预算下把 Agent 用出确定性结果、又用不起或不方便用国际闭源工具链的开发者。
+本书假定读者已经在用 Agent（如 OpenCode v2、Claude Code、Codex CLI 等）写代码，并且已经踩过"Agent 生成的代码看着对、跑不对"这类坑。本书面向的是**用 Agent 维护需要长期维护的传统非智能软件的开发者**——你维护的是一个已经上线、有存量用户、有历史契约的普通代码库。而开发 agent 系统本身，不在这本书的讨论范围内。如果你还没实际用过 Agent 辅助编程工具，建议先上手体验一段时间，再来看本书会更有共鸣。本书尤其适合国内 token 不自由、需要在有限调用预算下把 Agent 用出确定性结果、又用不起或不方便用国际闭源工具链的开发者，因为本书特意为此设计的内容完备的提示词，能尽量避免国内稍弱的大模型在生成文档和代码时跑偏。
 
 ### 2. 这本书与其他 AI Coding 资源有什么不同？
 
