@@ -160,7 +160,7 @@ graph TB
     style USER fill:#d9e8ff,stroke:#2c5f9e
 ```
 
-**重要澄清**：按 Ch.3/Ch.4 的严格定义，"partnership / shared kernel / conformist / anticorruption layer / open-host service" 描述的是**不同团队、不同 bounded context 之间**的整合关系。而 commons-csv 这 5 个子域实际上都生活在**同一个 bounded context**（同一个 Maven 模块、同一个维护团队、同一个发布版本号）里——这是刻意的单体设计。所以上图里的箭头不是团队间的"整合模式"，而是**子域内部的调用契约**。但为了帮助建立直觉，可以这样类比着记：
+**重要澄清**：按 Ch.3/Ch.4 的严格定义，"partnership / shared kernel / conformist / anticorruption layer / open-host service" 描述的是**不同团队、不同 bounded context 之间**的整合关系。而 commons-csv 这 5 个子域实际上都生活在**同一个 bounded context**（同一个 Maven 模块、同一个维护团队、同一个发布版本号）里——这是刻意的单体设计。所以上图里的箭头，外人乍看像是团队间的"整合模式"，拆开来看，其实是**子域内部的调用契约**。但为了帮助建立直觉，可以这样类比着记：
 
 - 子域①（格式定义）像是全局的**shared kernel**——④③⑤ 都依赖它的字段形状，一旦改了字段，三个子域都要重新编译/重新验证。
 - 子域④依赖子域②③的方式类似**customer–supplier**里"customer 完全主导，supplier 没有自己的对外契约"——`Lexer`/`ExtendedBufferedReader` 的接口形状完全是为了服务 `CSVParser` 设计的。
@@ -232,7 +232,7 @@ graph TB
 
 ### 2.3.4 子域接口变化
 
-和 2.2.5 一致的澄清：commons-csv 的子域①④本质上在同一个 bounded context、同一个团队里，所以下面不是字面意义上的"跨团队整合模式调整"，而是借用 DDD Ch.4 的词汇来描述"子域间调用契约"发生了什么变化：
+和 2.2.5 一致的澄清：commons-csv 的子域①④本质上在同一个 bounded context、同一个团队里，下面这些箭头，字面意义上称不上"跨团队整合模式调整"，充其量只是借用 DDD Ch.4 的词汇，来描述"子域间调用契约"发生了什么变化：
 
 - **子域①（supplier）→ 子域④（customer）**：子域①的 published language 新增了一个**可选**属性 `requiredHeaders`（默认不启用）。这是教科书式的**向后兼容的 open-host-service 式演进**——老的调用方完全不受影响，因为它们消费的字段集合没有减少，只是多了一个它们不关心的新字段。
 - **子域④对外（面向库的最终使用者）**：`CSVParser` 的构造/`parse(...)` 系列工厂方法的"失败模式集合"扩大了一项——这是需要写进 Javadoc、写进 CHANGELOG 的契约变化，即使方法签名一字未改。**接口契约不只是方法签名，还包括"这个方法可能因为什么原因失败"**，这是本次分析最值得记住的一条经验。
