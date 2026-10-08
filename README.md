@@ -18,7 +18,7 @@
 
 1. **理解**代码所承载的复杂业务逻辑——用 [DDD（Domain-Driven Design）](https://www.oreilly.com/library/view/learning-domain-driven-design/9781098100124/) 的 strategic design，把一个陌生棕地代码库拆成核心（core）、通用（generic）、支撑（supporting）子域，分清主次，再分析新需求会牵动哪些子域、哪些类。
 2. **设计**面向验收测试的 spec——用 [Decision Table Testing（决策表测试法）](https://www.virtuosoqa.com/post/decision-table-testing) 从业务规则系统性地推导验收测试用例，保证不遗漏、不重复，不必靠直觉随手列几个例子凑数。
-3. **构建**面向业务不变式的自动化验收测试——用 [Approved Scenarios](https://lexler.github.io/augmented-coding-patterns/patterns/approved-scenarios/) 模式（结合 TDD 的红绿重构节奏）把每一条验收测试用例落地为一份人类可读、Agent 真正执行的 markdown fixture，解决"Agent 生成的测试和生产代码都不可信"的问题。
+3. **构建**面向业务不变式的自动化验收测试——用 [Approved Scenarios](https://lexler.github.io/augmented-coding-patterns/patterns/approved-scenarios/) 模式（结合 TDD 的红绿重构节奏）针对不变的业务事实，把每一条验收测试用例落地为一份人类可读、Agent 真正执行的 markdown fixture，解决"Agent 生成的测试和生产代码都不可信"的问题。
 4. **评测**自动化验收测试确实保护了生产代码——用 [Fault Injection Testing](https://www.geeksforgeeks.org/software-engineering/fault-injection-testing-software-engineering/)（故障注入测试）在生产代码里精心注入与每条测试保护意图语义对应的故障，验证测试确实会变红、报错信息确实对应，排除"测试形同虚设"的可能。
 
 在 AI Coding 时代维护棕地项目，无论是开发新需求，还是修 bug，都离不开上述四个基本要素。
@@ -39,14 +39,14 @@
 
 ## 目录
 
-### 第一章 Agent 生成代码为什么不可信：读者的困境与四元素方法论
+### [第一章 Agent 生成代码为什么不可信：读者的困境与四元素方法论](ch01/README.md)
 
 - 1.1 国内 token 不自由的 Agent Coding 开发者的棕地困境
 - 1.2 本书方法论：理解 → 设计 → 构建 → 评测
 - 1.3 本书的实操锚点：Apache Commons CSV + OpenCode v2 + DeepSeek V4.1 Flash
 - 1.4 动手练习：先凭直觉写下你觉得会踩的坑
 
-### 第二章 理解代码所承载的复杂业务逻辑
+### [第二章 理解代码所承载的复杂业务逻辑](ch02/README.md)
 
 - 2.1 用 DDD 的 strategic design 快速理解陌生代码库并分清主次
 - 2.2 识别核心、支撑与通用子域
@@ -62,7 +62,7 @@
   - 2.3.4 子域接口变化
   - 2.3.5 开放设计问题
 
-### 第三章 设计面向验收测试的 spec
+### [第三章 设计面向验收测试的 spec](ch03/README.md)
 
 - 3.1 用 Decision Table 推导验收测试以便不遗漏不重复
 - 3.2 开放设计问题决策记录
@@ -84,7 +84,7 @@
   - 3.3.7 步骤6: 尽可能化简
   - 3.3.8 步骤7: 将规则转为测试用例
 
-### 第四章 构建面向业务不变式的自动化验收测试
+### [第四章 构建面向业务不变式的自动化验收测试](ch04/README.md)
 
 - 4.1 用 Approved Scenarios 方法解决 Agent 生成的代码不可信的问题
 - 4.2 自动化验收测试实现方案
@@ -93,7 +93,7 @@
   - 4.2.3 方案3（采用）：动态测试且每用例独立调试入口
 - 4.3 用单步调试的方法理解 approved scenarios 测试方法
 
-### 第五章 评测自动化验收测试确实保护了生产代码
+### [第五章 评测自动化验收测试确实保护了生产代码](ch05/README.md)
 
 - 5.1 用故障注入验证测试没有形同虚设
 - 5.2 故障注入测试实现方案
@@ -102,7 +102,7 @@
   - 5.2.3 方案3：自制 Java 故障注入器
 - 5.3 用单步调试和故障注入的方法理解 approved scenarios 测试方法
 
-### 第六章 总结"让 Agent 一次生成可信代码"工程范式
+### [第六章 总结"让 Agent 一次生成可信代码"工程范式](ch06/README.md)
 
 - 方法论回顾
 - 给 token 不自由开发者的行动清单
