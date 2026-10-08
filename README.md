@@ -1,6 +1,6 @@
-# 让Agent一次生成可信代码：国内Token不自由开发者用开源工具与国产大模型、SDD、DDD和Approved Scenarios维护非智能棕地软件项目
+# 让Agent一次生成可信代码：国内Token不自由开发者用SDD、DDD和Approved Scenarios维护非智能棕地软件项目
 
-![cover-image-v2.png](cover-image-v2.1.PNG)
+![cover-image-v2.2.png](cover-image-v2.2.PNG)
 
 ## 引言
 
@@ -110,7 +110,7 @@
 
 ## 版权许可协议
 
-[让Agent一次生成可信代码：国内Token不自由开发者用开源工具与国产大模型、SDD、DDD和Approved Scenarios维护非智能棕地软件项目](https://github.com/wubin28/first-pass-trust) © 2026 by [伍斌](https://github.com/wubin28) is licensed under [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/)
+[让Agent一次生成可信代码：国内Token不自由开发者用SDD、DDD和Approved Scenarios维护非智能棕地软件项目](https://github.com/wubin28/first-pass-trust) © 2026 by [伍斌](https://github.com/wubin28) is licensed under [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/)
 
 本书采用知识共享署名-非商业性使用-禁止演绎 4.0 国际许可协议（CC BY-NC-ND 4.0）进行许可。
 
