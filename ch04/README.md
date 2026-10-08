@@ -89,25 +89,25 @@
 
 | 占位符 | 含义 | 示例 |
 | --- | --- | --- |
-| `{{COMMONS_CSV_REPO_PATH}}` | 代码库在**本机**的绝对路径（工作副本，TDD 实现会直接修改这里的源码和测试）。如果这个路径还不存在、需要先从 `https://github.com/apache/commons-csv` 克隆到本地，请在占位符说明里写清楚克隆源地址。 | `/Users/xxx/work/commons-csv-workcopy`（克隆自 `/Users/xxx/katas/commons-csv`） |
-| `{{FEATURE_NAME}}` | 本次要实现的需求/功能名称，用于贯穿两份文档的标题、类名、包名建议。 | `required headers` |
-| `{{DECISION_TABLE_DOC_PATH}}` | 决策表文档的绝对路径（如果你做了第三章的动手练习，可以填你自己产出的决策表文档），这份文档内必须包含"Step 7：将规则转换为测试用例"章节。 | `/Users/xxx/.../02-2-decision-table.md` |
-| `{{OTHER_REFERENCE_DOCS}}` | 决策表文档里如果引用了其他背景文档（比如 ADR 决策记录），把这些文档的路径也列在这里；如果决策表文档本身已经自包含，留空即可。 | `/Users/xxx/.../01-3-adr.md` |
-| `{{OUTPUT_DIR}}` | 两份交付文档（方案设计文档 + 调试指南文档）要保存到的目录绝对路径。 | `/Users/xxx/.../wiki` |
-| `{{SOLUTIONS_DOC_FILENAME}}` | 方案设计文档的文件名。 | `solutions.md` |
-| `{{DEBUG_GUIDE_DOC_FILENAME}}` | 调试指南文档的文件名。 | `debugging-guide.md` |
+| `<COMMONS_CSV_REPO_PATH>` | 代码库在**本机**的绝对路径（工作副本，TDD 实现会直接修改这里的源码和测试）。如果这个路径还不存在、需要先从 `https://github.com/apache/commons-csv` 克隆到本地，请在占位符说明里写清楚克隆源地址。 | `/Users/xxx/work/commons-csv-workcopy`（克隆自 `/Users/xxx/katas/commons-csv`） |
+| `<FEATURE_NAME>` | 本次要实现的需求/功能名称，用于贯穿两份文档的标题、类名、包名建议。 | `required headers` |
+| `<DECISION_TABLE_DOC_PATH>` | 决策表文档的绝对路径（如果你做了第三章的动手练习，可以填你自己产出的决策表文档），这份文档内必须包含"Step 7：将规则转换为测试用例"章节。 | `/Users/xxx/.../02-2-decision-table.md` |
+| `<OTHER_REFERENCE_DOCS>` | 决策表文档里如果引用了其他背景文档（比如 ADR 决策记录），把这些文档的路径也列在这里；如果决策表文档本身已经自包含，留空即可。 | `/Users/xxx/.../01-3-adr.md` |
+| `<OUTPUT_DIR>` | 两份交付文档（方案设计文档 + 调试指南文档）要保存到的目录绝对路径。 | `/Users/xxx/.../wiki` |
+| `<SOLUTIONS_DOC_FILENAME>` | 方案设计文档的文件名。 | `solutions.md` |
+| `<DEBUG_GUIDE_DOC_FILENAME>` | 调试指南文档的文件名。 | `debugging-guide.md` |
 
-下面为本章的完整提示词。
+提示词开始，请从这里往下全部复制
 
 ````
 你是一名资深 Java 测试工程师，精通 TDD（测试驱动开发）和 JUnit 5。你的任务分两个阶段：**阶段 A** 产出一份方案设计文档并给出推荐；**阶段 B**（在方案确定后）按推荐方案完成 TDD 实现，并产出一份 VSCode 单步调试指南文档。如果你是在非交互式、单轮执行的环境里运行（无法等待人工确认再继续），**直接采用你自己推荐的方案继续阶段 B**，不要中途停下来等待批准。
 
 ### 背景与约束
 
-- 目标代码库：`{{COMMONS_CSV_REPO_PATH}}`。这是一个标准 Maven 项目（Apache Commons CSV），`pom.xml` 已引入 `org.junit.jupiter:junit-jupiter`（JUnit 5）。**不要凭空假设代码库里任何类的字段/方法/默认值——必须实际打开源码文件核实**，具体要核实什么见下面「阶段 A 的必做勘查」。
-- 本次要实现的需求：`{{FEATURE_NAME}}`。
-- 验收测试用例的**设计**已经由决策表方法完成，不需要你重新设计测试用例本身，你的任务是把它们**转化为可执行代码**。这些用例在 `{{DECISION_TABLE_DOC_PATH}}` 文档的"Step 7：将规则转换为测试用例"章节里，通常以"前置条件 / 测试数据 / 预期结果"的结构逐条列出。如果该文档还引用了其他背景文档（`{{OTHER_REFERENCE_DOCS}}`），在遇到决策依据不清楚的地方去查阅它们。
-- 实现方法必须是 **Approved Scenarios**（完整定义见本书 4.1 节，务必先回顾 4.1 节再开始设计）：每个验收测试用例对应一份人类可读的 markdown fixture 文件，fixture 同时是"产品经理评审材料"和"测试真正读取并执行的唯一输入"——不能是两份互相脱节、手工保持同步的东西。
+- 目标代码库：`<COMMONS_CSV_REPO_PATH>`。这是一个标准 Maven 项目（Apache Commons CSV），`pom.xml` 已引入 `org.junit.jupiter:junit-jupiter`（JUnit 5）。**不要凭空假设代码库里任何类的字段/方法/默认值——必须实际打开源码文件核实**，具体要核实什么见下面「阶段 A 的必做勘查」。
+- 本次要实现的需求：`<FEATURE_NAME>`。
+- 验收测试用例的**设计**已经由决策表方法完成，不需要你重新设计测试用例本身，你的任务是把它们**转化为可执行代码**。这些用例在 `<DECISION_TABLE_DOC_PATH>` 文档的"Step 7：将规则转换为测试用例"章节里，通常以"前置条件 / 测试数据 / 预期结果"的结构逐条列出。如果该文档还引用了其他背景文档（`<OTHER_REFERENCE_DOCS>`），在遇到决策依据不清楚的地方去查阅它们。
+- 实现方法必须是 **Approved Scenarios**（完整定义见本提示词末尾附录，务必先读附录再开始设计）：每个验收测试用例对应一份人类可读的 markdown fixture 文件，fixture 同时是"产品经理评审材料"和"测试真正读取并执行的唯一输入"——不能是两份互相脱节、手工保持同步的东西。
 - 实现方法必须是 **TDD**（红/绿/重构）：每加入一条新的验收测试，先确认它在当前代码下会失败（红），再在生产代码里做最小改动让它通过（绿），必要时重构。
 - 最终代码要能在 **VSCode** 里用 Testing 面板逐条单步调试：每个验收测试用例必须能在 VSCode 左侧 Testing 面板里展开为**独立的、可单独右键 "Debug Test" 的子节点**，不能是"全部用例共享 1 个不可拆分的测试入口"。
 
@@ -124,9 +124,9 @@
 
 #### A1. 必做的环境/代码勘查（不要跳过，不要假设）
 
-1. 确认 `{{COMMONS_CSV_REPO_PATH}}` 是否已经是一个可用的 git 工作副本；如果需要先 clone，执行 clone。
-2. 读 `{{DECISION_TABLE_DOC_PATH}}` 的"Step 7"章节，数清楚总共有多少条验收测试用例，记下每条用例的前置条件/测试数据/预期结果。如果该章节之前还有"决策表类型选择""条件/规则/动作"等章节，通读一遍以理解每条用例背后的业务规则。
-3. 在代码库里搜索与 `{{FEATURE_NAME}}` 相关的现有字段、方法、校验逻辑——即使这个功能"尚未实现"，也要找到**最合理的插入点**（比如现有的构造期校验方法、现有的解析期表头处理方法），并记录下具体的类名和当前行号。
+1. 确认 `<COMMONS_CSV_REPO_PATH>` 是否已经是一个可用的 git 工作副本；如果需要先 clone，执行 clone。
+2. 读 `<DECISION_TABLE_DOC_PATH>` 的"Step 7"章节，数清楚总共有多少条验收测试用例，记下每条用例的前置条件/测试数据/预期结果。如果该章节之前还有"决策表类型选择""条件/规则/动作"等章节，通读一遍以理解每条用例背后的业务规则。
+3. 在代码库里搜索与 `<FEATURE_NAME>` 相关的现有字段、方法、校验逻辑——即使这个功能"尚未实现"，也要找到**最合理的插入点**（比如现有的构造期校验方法、现有的解析期表头处理方法），并记录下具体的类名和当前行号。
 4. 搜索代码库里 `src/test/resources` 一类目录下是否已经存在类似"approved/golden file"的测试模式先例；如果有，优先复用已有约定；如果没有，说明这是全新引入。
 5. 检查本机开发环境（如果你有权限执行命令）：IDE 的 Java 调试/测试相关扩展是否已安装，版本是多少。
 6. 把以上勘查到的**事实**（不是假设）写成文档开头的"前置事实"小节。
@@ -137,7 +137,7 @@
 
 挑选推荐方案时，优先权重给"VSCode 单步调试体验"这个维度（如果用户的原始诉求里反复强调了这一点），但要用上面「必须遵守的关键技术决定」里第 1、2 条的结论来实现它——也就是说，"调试体验最好的方案"在具体落地时要用 `@ParameterizedTest + Named`，不要用 `@TestFactory + DynamicTest`。
 
-把这份方案设计文档保存为 `{{OUTPUT_DIR}}/{{SOLUTIONS_DOC_FILENAME}}`。
+把这份方案设计文档保存为 `<OUTPUT_DIR>/<SOLUTIONS_DOC_FILENAME>`。
 
 ### 阶段 B：按推荐方案实现
 
@@ -146,7 +146,7 @@
 3. **写出 fixture 解析器和执行器**：解析器只管"读懂 markdown 结构"，执行器只管"把解析出来的数据变成真实的 API 调用并断言"，两者分开，任何一方都不应该因为对方的实现细节而被迫改动。
 4. **写出测试入口类**：用 `@ParameterizedTest(name = "{0}") + @MethodSource`，`@MethodSource` 方法扫描 fixture 目录（建议按决策表分组用子目录），对每个 fixture 文件用 `Named.of(displayName, fixture)` 包装后传入。
 5. **全量回归验证**：跑一次完整的构建/测试命令（比如 `mvn verify` 或该项目的等价命令），确认新增的全部用例通过，且没有破坏任何已有测试。如果构建失败（比如许可证检查插件报错），按「必须遵守的关键技术决定」第 6 条处理，不要用 `--no-verify`/跳过检查之类的手段绕过。
-6. **产出调试指南文档**（`{{OUTPUT_DIR}}/{{DEBUG_GUIDE_DOC_FILENAME}}`），结构参考：打开仓库文件夹后 Testing 面板怎么用、每一条验收测试用例一节（断点：类名+行号+这一行代码内容；观察变量：变量名+预期值+为什么能验证对应规则）、测试执行逻辑本身的 1~3 个关键断点、最后附一张"行号对照表"。
+6. **产出调试指南文档**（`<OUTPUT_DIR>/<DEBUG_GUIDE_DOC_FILENAME>`），结构参考：打开仓库文件夹后 Testing 面板怎么用、每一条验收测试用例一节（断点：类名+行号+这一行代码内容；观察变量：变量名+预期值+为什么能验证对应规则）、测试执行逻辑本身的 1~3 个关键断点、最后附一张"行号对照表"。
 
 每条用例的断点必须给出**真实存在**的类名和行号（在你实际写完生产代码之后，用 grep 或者直接打开文件数行号来核实，不要凑数或估算），并且要说清楚"观察这个变量能验证决策表里的哪条规则"——调试指南的核心价值是帮助读者通过单步执行理解代码逻辑，不是单纯罗列断点坐标。
 
@@ -156,8 +156,123 @@
 - 方案对比部分，"优势/劣势/适用场景/不适用场景"四项都要填，不能有空泛的套话（比如不能只写"维护性更好"而不说清楚好在哪、对谁而言）。
 - 调试指南里的每一条断点说明，读者应该能不看生产代码原文就理解"命中这里意味着程序正在检查什么"。
 - 两份文档之间要能相互印证：调试指南里提到的"为什么选这个技术方案"，应该能在方案设计文档的"推荐理由"里找到对应说法，不能自相矛盾。
+
+## 附录：Approved Scenarios 模式完整说明
+
+> 以下内容完整摘自 `approved-scenarios.md`（Augmented Coding Patterns 文档集），逐字保留，供实现时直接参考。
+
+### Problem
+
+Generating both tests and code with the AI and not checking is risky, but the AI is also prone to generating lots of tests quickly. Reviewing many AI-generated tests quickly becomes impractical, especially when assertions are complex.
+
+### Pattern
+
+Design tests around approval files that combine input and expected output in a domain-specific easy-to-validate format. This is a special case of the Constrained Tests pattern.
+
+Validate the test execution logic once. After that, adding new test cases only requires reviewing fixtures.
+
+Structure each approval file to contain:
+- Input data (context, parameters, state)
+- Expected output (results, side effects, API calls)
+- Format adapted to your problem domain for easy scanning
+
+The test runner reads fixtures, executes code, and regenerates approval files. Validation becomes a simple diff review.
+
+This pattern works best for problems that have an intuitive visual representation that is straightforward to check, but can also be used for checking call sequences.
+
+### Example
+
+The pattern adapts to different domains:
+
+**Testing a multi-step process with external service calls:**
+
+Create fixtures like `checkout-with-discount.approved.md`:
+```markdown
+## Input
+User: premium_member
+Cart: [{product_id: "laptop-123", quantity: 1}, {product_id: "mouse-456", quantity: 1}]
+Discount code: SAVE20
+
+## Service Calls
+POST /inventory/reserve
+  {"items": [{product_id: "laptop-123", quantity: 1}, {product_id: "mouse-456", quantity: 1}]}
+Response: 200 {"reservation_id": "res_789"}
+
+GET /pricing/calculate
+  {"items": [{product_id: "laptop-123", quantity: 1}, {product_id: "mouse-456", quantity: 1}], "user": "premium_member"}
+Response: 200 {"subtotal": 1250, "discount": 250, "total": 1000}
+
+POST /payment/process
+  {"amount": 1000, "reservation_id": "res_789"}
+Response: 200 {"transaction_id": "txn_abc"}
+
+## Output
+Order: confirmed
+Total: $1000
+Email sent: order_confirmation
+```
+
+Single test reads all `.approved.md` files, executes flows, regenerates files with actual results. Review is scanning markdown diffs, not reading assertion code.
+
+**Testing visual algorithms:**
+
+Create fixtures like `game-of-life-glider.approved.md`:
+```markdown
+## Input
+......
+..#...
+...#..
+.###..
+......
+
+## Result
+......
+......
+.#.#..
+..##..
+..#...
+```
+
+Test reads all game-of-life fixtures, computes next generation, verifies output matches. Adding new test cases is drawing ASCII patterns - trivially easy to validate correctness by eye.
+
+**Testing refactorings:**
+
+Create fixture pairs like `inline-variable.input.ts` and `inline-variable.approved.ts`:
+
+This example uses two separate files. One for the input and one for the expected output. The header contains the command that generates the approved output.
+
+Input file:
+```typescript
+/**
+ * @description Inline variable with multiple usages
+ * @command refakts inline-variable "[<CURRENT_FILE> 8:18-8:21]"
+ */
+
+function processData(x: number, y: number): number {
+    const sum = x + y;
+    const result = sum * 2 + sum;
+    return result;
+}
+```
+
+Expected output file:
+```typescript
+/**
+ * @description Inline variable with multiple usages
+ * @command refakts inline-variable "[<CURRENT_FILE> 8:18-8:21]"
+ */
+
+function processData(x: number, y: number): number {
+  const result = (x + y) * 2 + (x + y);
+  return result;
+}
+```
+
+### Note
+
+This pattern has similarities to Gherkin but better adapts to the specific domain, making the extra indirection worthwhile.
 ````
 
-以上为本章的完整提示词。
+提示词结束，以上内容请整段复制给 Agent。
 
 跑完之后，自己在 IDE 里按产出的调试指南走一遍，特别关注"结构性问题抢跑"这一类用例——亲眼看到"必需列检查那个断点永远不会命中"，比读十遍文字描述都更有说服力；也把你的 Agent 推荐的方案和本章 4.2.3 节的方案3对比，看看它有没有踩中"用 `@TestFactory` 实现独立调试入口"这个真实的坑。下一章会用故障注入的方法，进一步验证这些测试是否真的在保护对应的生产代码，而非形同虚设。

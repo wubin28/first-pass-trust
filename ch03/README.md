@@ -247,30 +247,30 @@ graph LR
 
 使用前请把下面三处占位符替换成你自己的实际信息：
 
-- `{{SUBDOMAIN_ANALYSIS_DOC_PATH}}`——子域分析文档的绝对路径（如果你做了第二章的动手练习，这里可以填你自己产出的文档 A 路径；没有就留空，不影响任务完成）
-- `{{IMPACT_ANALYSIS_DOC_PATH}}`——影响分析文档的绝对路径（同理，可以填你自己产出的文档 B 路径）
-- `{{COMMONS_CSV_REPO_PATH}}`——commons-csv 代码库在本机的路径（如果该路径下还没有代码，提示词里已经包含"先 `git clone` 到当前工作目录"的指令，你只需要把占位符换成克隆源地址或已存在的本机路径；也可以换成你自己的目标代码库）
+- `<SUBDOMAIN_ANALYSIS_DOC_PATH>`——子域分析文档的绝对路径（如果你做了第二章的动手练习，这里可以填你自己产出的文档 A 路径；没有就留空，不影响任务完成）
+- `<IMPACT_ANALYSIS_DOC_PATH>`——影响分析文档的绝对路径（同理，可以填你自己产出的文档 B 路径）
+- `<COMMONS_CSV_REPO_PATH>`——commons-csv 代码库在本机的路径（如果该路径下还没有代码，提示词里已经包含"先 `git clone` 到当前工作目录"的指令，你只需要把占位符换成克隆源地址或已存在的本机路径；也可以换成你自己的目标代码库）
 
-下面为本章的完整提示词。
+提示词开始，请从这里往下全部复制
 
 ````
 # 任务：用决策表测试法为 commons-csv 的 `required headers` 新需求设计验收测试用例
 
 你是一名资深测试架构师，要为 Apache Commons CSV 代码库里一个尚未实现的新需求，设计验收测试用例。你要用**决策表测试法**（Decision Table Testing）来保证测试用例推导过程清晰、全面、不遗漏，而不是凭直觉随手列几个例子。
 
-决策表测试法的方法论知识，本书 3.1 节已经介绍过（七步法、五种类型、常见局限），**不要去网上搜索其他资料，只依据本书 3.1 节的方法论讲解和你自己对代码库的实地核查来完成任务**。
+本提示词末尾的"附录 A：决策表测试法指南"包含你需要的全部方法论知识，**不要去网上搜索其他资料，只依据附录 A 和你自己对代码库的实地核查来完成任务**。
 
 ## 背景资料（可选，若路径有效请阅读；若无效或你没有访问权限，跳过即可，不影响任务完成）
 
 - 子域分析文档：
 ```
-{{SUBDOMAIN_ANALYSIS_DOC_PATH}}
+<SUBDOMAIN_ANALYSIS_DOC_PATH>
 ```
 （如果存在，阅读它以了解 CSVFormat / CSVParser / CSVRecord / Lexer 等类在这个代码库里分别承担什么职责，哪些是"核心业务逻辑"，哪些是"支撑性配置"）
 
 - 影响分析文档：
 ```
-{{IMPACT_ANALYSIS_DOC_PATH}}
+<IMPACT_ANALYSIS_DOC_PATH>
 ```
 （如果存在，阅读它以了解这次新需求会牵动哪些类、哪些类不受影响）
 
@@ -281,7 +281,7 @@ graph LR
 本机路径：
 
 ```
-{{COMMONS_CSV_REPO_PATH}}
+<COMMONS_CSV_REPO_PATH>
 ```
 
 把仓库克隆到你当前的工作目录下，然后在克隆下来的副本里做下面的"代码核查"。
@@ -339,7 +339,7 @@ graph LR
 
 ## 第三步：用决策表测试法设计验收测试用例（产出 Decision Table 文档 2）
 
-严格按照本书 3.1 节介绍的七步法来做，不要跳步，每一步都要把结果和理由写出来：
+严格按照附录 A 里"How to Create a Decision Table: Step by Step"的 7 个步骤来做，不要跳步，每一步都要把结果和理由写出来：
 
 1. **先选定决策表类型，并给出理由**。一共有 5 种类型（Limited / Extended / Condition Action / Switch / Rule Based）。你要对照你的任务的真实复杂度（条件数量、条件之间是否存在互相影响/门控关系）来挑选，并在文档里明确说："因为……所以我选……"，不能跳过这一步直接开始画表。
 2. **Step 1：识别所有条件**——条件要能追溯到第一步的代码核查结果和第二步的 ADR 决策，不能是含糊的描述。同时要明确写出"哪些看起来像条件、但其实不影响结果、因此被我排除掉了"的维度，并说明排除理由（这一点很重要，是判断你有没有真正理解系统行为、还是只是在堆砌组合的关键标志）。
@@ -368,8 +368,143 @@ graph LR
 - [ ] 每一条规则都对应一个真实可达的程序状态，不存在"理论组合但实际不可能发生"却没有被剔除或说明的规则。
 - [ ] 第 7 步产出的测试用例，任何一个拿去跟同事复述，对方都能明确说出"这个测试用例在验证哪条业务规则、输入什么、期望输出什么"，不需要再追问你。
 - [ ] 两份产出文件（`01-3-adr.md` 和 `01-2-decision-table.md`）都是独立可读的 Markdown 文档，不依赖你在对话里说过的话才能看懂。
+
+# 附录 A：决策表测试法指南（节选自 "What Is Decision Table Testing? Types and Examples"）
+
+## Key Components of a Decision Table（决策表的四个核心组成部分）
+
+### 1. Conditions（条件）
+
+Conditions are the input variables that influence the system's behavior. Each condition represents a factor that the system evaluates when making a decision. In a loan approval system, conditions might include credit score, annual income, and employment status. In an e-commerce checkout, conditions might include payment method, shipping address validity, and coupon code applicability.
+
+Each condition has a defined set of possible values. For binary conditions, these are typically True or False (sometimes represented as Y or N). For multi-valued conditions, these might be categories like High, Medium, or Low, or specific ranges like "income above $50,000" versus "income below $50,000."
+
+### 2. Actions（动作）
+
+Actions are the system's expected responses when a particular combination of conditions is met. Actions represent what the system does, not what it evaluates. In the loan approval example, actions might include "approve loan," "reject loan," or "refer to manual underwriting." In the e-commerce example, actions might include "process payment," "display error message," or "apply discount."
+
+### 3. Rules（规则）
+
+Rules are the columns of the decision table. Each rule defines one specific combination of condition values and the corresponding action or actions the system should execute. If a decision table has three binary conditions, the table will have up to eight rules (2^3), with each rule representing a unique test case.
+
+### 4. Condition Alternatives and Action Entries（条件取值与动作条目）
+
+Condition alternatives are the specific values assigned to each condition within a rule. Action entries indicate which actions are triggered (or not triggered) for each rule. Together, they populate the body of the table and define the complete decision logic under test.
+
+## Types of Decision Tables（决策表的五种类型）
+
+### 1. Limited Decision Table（有限决策表）
+
+A limited decision table restricts condition values to binary states: True/False or Yes/No. This is the simplest form and works well for systems with straightforward, independent conditions.
+
+典型例子：User Authentication System（用户名有效性 × 密码有效性 → 四种组合，四个测试用例）。
+
+### 2. Extended Decision Table（扩展决策表）
+
+An extended decision table allows conditions to have multiple values beyond binary. This is essential for systems where inputs are categorical or range-based.
+
+典型例子：Insurance Policy Underwriting（年龄分段 × 理赔历史 → 不同的核保结论和保费档位）。
+
+### 3. Condition Action Table（条件-动作表）
+
+A condition action table maps each condition directly to a specific outcome, making it particularly useful when the relationship between inputs and outputs is clear and one to one.
+
+典型例子：E-commerce Discount Engine。
+
+### 4. Switch Table（开关/分支表）
+
+A switch table applies when a single controlling condition determines the outcome through multiple branches. It simplifies decision logic into a lookup structure.
+
+典型例子：Shipping Method Selection（按运输方式这一个主控条件分支）。
+
+### 5. Rule Based Decision Table（规则型决策表）
+
+Rule based decision tables combine multiple interacting conditions to handle complex, layered business logic. They are the most comprehensive form and are commonly used in financial services, healthcare, and insurance systems where regulatory compliance demands complete traceability.
+
+典型例子：Healthcare Patient Triage System——症状严重程度和既往病史会共同决定"是否立即收治"和"是否触发专科会诊提醒"这两个动作，每条路径都要能被显式定义和测试。
+
+## How to Create a Decision Table: Step by Step（七步法）
+
+### Step 1: Identify All Conditions
+
+Start by listing every input condition that influences the system's decision. Review requirements documents, user stories, and business rules to ensure completeness. For an enterprise loan origination system, conditions might include credit score range, debt to income ratio, employment verification status, and loan amount requested.
+
+### Step 2: Define Condition Values
+
+For each condition, define the complete set of possible values. Binary conditions have two values. Multi-valued conditions might have three, four, or more. Be precise: "credit score above 700" is testable; "good credit score" is not.
+
+### Step 3: Calculate the Number of Rules
+
+For a limited decision table with binary conditions, the number of rules equals 2^n, where n is the number of conditions. For extended tables, multiply the number of values for each condition. Three conditions with 2, 3, and 2 values respectively produce 2 × 3 × 2 = 12 rules.
+
+### Step 4: Identify All Actions
+
+List every possible action the system can take. Include both positive outcomes (approve, process, route) and negative outcomes (reject, display error, escalate). Include compound actions where the system performs multiple responses for a single rule.
+
+### Step 5: Populate the Table
+
+Fill in the condition alternatives for each rule, ensuring every unique combination is represented. Then assign the correct action or actions for each rule based on the business logic.
+
+### Step 6: Simplify Where Possible
+
+Some conditions may be irrelevant for certain rules. If the outcome is the same regardless of a condition's value, that condition can be marked as "don't care" (often represented with a dash) for those rules. This reduces redundancy without sacrificing coverage.
+
+### Step 7: Convert Rules to Test Cases
+
+Each column (rule) becomes one test case. Define the specific test data, expected results, and preconditions for each. This traceability from business rule to test case is one of decision table testing's greatest strengths.
+
+## Limitations of Decision Table Testing（局限性，设计时要主动规避）
+
+### 1. Exponential growth with many conditions
+
+A system with 10 binary conditions produces 1,024 rules. With multi-valued conditions, the number grows even faster. Large tables become difficult to create, review, and maintain without tool support or optimization techniques.
+
+### 2. Weak fit for continuous or range based data
+
+Decision tables work best with discrete, categorical inputs. Conditions involving continuous ranges (temperature, price, time) require equivalence partitioning or boundary value analysis to reduce values to testable categories before a decision table can be applied.
+
+### 3. Assumption of condition independence
+
+Standard decision tables assume conditions are independent. When the value of one condition constrains the possible values of another (for example, if "account type = savings" limits "overdraft eligibility" to "no"), the table may include invalid combinations that must be identified and removed.
+
+### 4. Maintenance overhead in fast changing systems
+
+When business rules change frequently, decision tables require constant updates. This overhead can become a bottleneck, particularly for large enterprise systems with hundreds of decision points.
+
+## Best Practices for Enterprise Decision Table Testing（最佳实践）
+
+### 1. Start with the business rules, not the UI
+
+Decision tables should be derived from documented business rules and requirements, not from observing the application's interface. This ensures the table tests intended behavior, not incidental behavior.
+
+### 2. Apply equivalence partitioning before building the table
+
+For conditions with continuous ranges, use equivalence partitioning to reduce the range to representative categories. Then build the table using those categories. This prevents the table from growing unmanageably large while maintaining meaningful coverage.
+
+### 3. Always test boundary conditions
+
+After building the decision table, supplement it with boundary value analysis for any condition that involves a range. If a condition threshold is "income above $50,000," test at $49,999, $50,000, and $50,001. Boundaries are where defects cluster.
+
+### 4. Eliminate impossible combinations
+
+Review the completed table for rules that represent logically impossible combinations of conditions. Remove or mark them to avoid wasting test execution time on invalid scenarios.
+
+### 5. Automate with data driven testing
+
+Convert the decision table into a data source (CSV, database, or API) and feed it into an automation platform that supports parameterized execution. This transforms the table from a planning document into an executable test suite.
+
+## 补充：常见问答（FAQ 节选）
+
+**How many test cases does a decision table produce?**
+The number of test cases equals the number of rules (columns) in the table. For a limited decision table with n binary conditions, this is 2^n. For extended tables, multiply the number of possible values for each condition. Three conditions with 2, 3, and 4 values respectively produce 2 × 3 × 4 = 24 test cases.
+
+**What is the difference between a limited and extended decision table?**
+A limited decision table restricts all conditions to binary values (Yes/No or True/False), producing a fixed number of rules calculated as 2^n where n is the number of conditions. An extended decision table allows conditions to have multiple values (such as High, Medium, Low), which increases the number of rules but provides more granular coverage of complex business logic.
+
+**How does decision table testing relate to equivalence partitioning and boundary value analysis?**
+These techniques are complementary. Equivalence partitioning reduces continuous input ranges into representative categories, which are then used as condition values in the decision table. Boundary value analysis supplements the table by testing the edges of those categories, where defects are most likely to occur. Used together, they produce comprehensive coverage that is both efficient and thorough.
 ````
 
-以上为本章的完整提示词。
+提示词结束，以上内容请整段复制给 Agent。
 
 跑完之后，数一数你的 Agent 推导出多少条规则、多少个测试用例，和本章的 11 条规则、11 个测试用例对比——如果数字差异很大，回头看看是否漏掉了某个条件之间的依赖关系，或者把本该合并的等价类拆成了多条规则。
