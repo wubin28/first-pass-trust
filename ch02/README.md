@@ -166,7 +166,9 @@ graph TB
 
 ## 2.3 新需求实现的影响分析
 
-有了上面这张子域地图，现在可以正式分析 `required headers` 需求：给 `CSVFormat.Builder` 加一个 `setRequiredHeaders(String...)`，解析时一旦发现表头缺少这些列，就在读第一条记录之前抛出一个清楚说明缺了哪些列的错误，而不会等业务代码调用 `record.get("currency")` 时才报一个语义含糊的"Mapping for currency not found"式的错误。
+有了上面这张子域地图，现在可以正式分析 `required headers` 需求原文：
+
+> 我在维护 Apache Commons CSV。我们对账时，上游 CSV 应当包含若干固定列。我想给 `CSVFormat.Builder` 加一个 `setRequiredHeaders(String...)`：解析时一旦发现表头缺少这些列，就在读第一条记录之前抛出一个清楚说明缺了哪些列的错误，而不是等业务代码调用 `record.get("currency")` 时才报 `Mapping for currency not found`。
 
 ### 2.3.1 代码现状
 
