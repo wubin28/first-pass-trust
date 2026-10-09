@@ -421,6 +421,8 @@ graph LR
 - `<IMPACT_ANALYSIS_DOC_PATH>`——影响分析文档的绝对路径（同理，可以填你自己产出的文档 B 路径）
 - `<COMMONS_CSV_REPO_PATH>`——commons-csv 代码库在本机的路径（如果该路径下还没有代码，提示词里已经包含"先 `git clone` 到当前工作目录"的指令，你只需要把占位符换成克隆源地址或已存在的本机路径；也可以换成你自己的目标代码库）
 
+推荐你在上一章为实操创建的目录中继续本章的实操。
+
 <details>
 <summary>📋 点击展开/折叠完整提示词（可直接复制给 Agent）</summary>
 

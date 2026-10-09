@@ -150,6 +150,8 @@ fixture 文件既是"评审材料"又是"测试真正执行的输入"，这保�
 | `<SOLUTIONS_DOC_FILENAME>` | 方案设计文档的文件名。 | `solutions.md` |
 | `<DEBUG_GUIDE_DOC_FILENAME>` | 调试指南文档的文件名。 | `debugging-guide.md` |
 
+推荐你在上一章为实操创建的目录中继续本章的实操。
+
 <details>
 <summary>📋 点击展开/折叠完整提示词（可直接复制给 Agent）</summary>
 
