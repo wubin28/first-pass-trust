@@ -133,16 +133,14 @@
 
 使用前请把下面所有占位符替换成你自己的实际信息（如果某个占位符暂时没有明确答案，可以保留原样，让 Agent 自己判断并在文档里说明它做出的假设）：
 
-| 占位符 | 含义 | 示例 |
-| --- | --- | --- |
-| `<CODEBASE_PATH>` | 目标代码库在本机的绝对路径 | `/Users/xxx/work/commons-csv-workcopy` |
-| `<DEBUGGING_GUIDE_PATH>` | 第四章动手练习中你自己产出的调试指南文档路径（里面应包含各测试对应的生产代码类名+行号+断点） | `/path/to/debugging-guide.md` |
-| `<ACCEPTANCE_TESTS_DESCRIPTION>` | 要做故障注入测试的验收测试范围说明：数量、测试类全名、所在目录 | "11 个验收测试，测试类为 `org.apache.commons.csv.requiredheaders.RequiredHeadersApprovedScenariosTest`，fixture 在 `src/test/resources/.../approved-scenarios/`" |
-| `<USAGE_SCOPE>` | 这套故障注入设施的用途定位 | "一次性验证/学习工具，不需要长期留在代码库里、不需要进 CI" |
-| `<DIFFERENTIATION_DIMENSION>` | 希望 3 个方案按什么维度区分（不填则由 Agent 自行建议并说明理由） | "按故障注入的实现机制区分" |
-| `<IMPLEMENTATION_LANGUAGE>` | 自动化脚本的实现语言偏好 | "本机是 macOS iTerm2 zsh，优先 shell 脚本方案" |
-| `<VALIDATION_STRICTNESS>` | 自动化校验"测试失败信息是否与生产代码行为相关"这一步的严格程度 | "精确子串匹配：预先写好每个测试期望的异常消息关键片段，脚本跑完后用这个片段校验" |
-| `<OUTPUT_PATH>` | 生成文档要保存到的路径 | `/path/to/solutions.md` |
+- `<CODEBASE_PATH>`：目标代码库在本机的绝对路径。示例：`/Users/xxx/work/commons-csv-workcopy`
+- `<DEBUGGING_GUIDE_PATH>`：第四章动手练习中你自己产出的调试指南文档路径（里面应包含各测试对应的生产代码类名+行号+断点）。示例：`/path/to/debugging-guide.md`
+- `<ACCEPTANCE_TESTS_DESCRIPTION>`：要做故障注入测试的验收测试范围说明：数量、测试类全名、所在目录。示例："11 个验收测试，测试类为 `org.apache.commons.csv.requiredheaders.RequiredHeadersApprovedScenariosTest`，fixture 在 `src/test/resources/.../approved-scenarios/`"
+- `<USAGE_SCOPE>`：这套故障注入设施的用途定位。示例："一次性验证/学习工具，不需要长期留在代码库里、不需要进 CI"
+- `<DIFFERENTIATION_DIMENSION>`：希望 3 个方案按什么维度区分（不填则由 Agent 自行建议并说明理由）。示例："按故障注入的实现机制区分"
+- `<IMPLEMENTATION_LANGUAGE>`：自动化脚本的实现语言偏好。示例："本机是 macOS iTerm2 zsh，优先 shell 脚本方案"
+- `<VALIDATION_STRICTNESS>`：自动化校验"测试失败信息是否与生产代码行为相关"这一步的严格程度。示例："精确子串匹配：预先写好每个测试期望的异常消息关键片段，脚本跑完后用这个片段校验"
+- `<OUTPUT_PATH>`：生成文档要保存到的路径。示例：`/path/to/solutions.md`
 
 <details>
 <summary>📋 点击展开/折叠完整提示词（可直接复制给 Agent）</summary>
