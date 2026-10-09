@@ -108,27 +108,54 @@ strategic design 原本是为公司和团队设计的分析工具，用在一个
 
 ### 2.2.3 识别核心、支撑与通用子域
 
-`commons-csv` 的 package 结构是扁平的单一 package，所以子域边界是在类簇/职责簇粒度上划的。实地核查源码后，得到以下五个子域：
+commons-csv 的 package 结构是扁平的单一 package（`org.apache.commons.csv`），所以下面的子域边界是在**类簇/职责簇**粒度上划的，不是 package 粒度。
 
-| 子域 | 包含的类 | 职责一句话 |
-| --- | --- | --- |
-| ① 格式定义 Format Definition | `CSVFormat`、`CSVFormat.Builder`、`QuoteMode`、`DuplicateHeaderMode`、`Constants` | 描述"一份 CSV 长什么样"——分隔符、引号、转义符、表头、重复表头策略等约 25 项配置，外加 11 种预定义方言 |
-| ② 底层字符 I/O | `ExtendedBufferedReader` | 带前瞻（peek）、BOM 剥离、位置跟踪的字符读取基础设施，完全不知道"CSV"是什么 |
-| ③ CSV 词法切分 Lexing | `Lexer`、`Token` | 按分隔符/引号/转义符/注释符规则，把字符流切分成 Token——真正"读懂 CSV 语法"的地方 |
-| ④ 记录解析与按名访问 | `CSVParser`、`CSVRecord`、`CSVException` | 驱动 Lexer 拉取 token 组装成记录，同时构建"列名→列序号"映射表，支持按名访问；重复/空列名怎么处理、大小写是否敏感，全部在这里判定 |
-| ⑤ 输出打印 Output Printing | `CSVPrinter` | 把内存数据按格式规则写成 CSV 文本——子域④的逆操作，但逻辑简单得多 |
+#### 子域 ①：格式定义（Format Definition / CSV 方言配置）
 
-对照"竞争优势 / 复杂度 / 波动性 / 能否外包"四个维度逐一判定：
+- **包含的类**：`CSVFormat`（含内部类 `Builder`、内部枚举 `Predefined`）、`QuoteMode`、`DuplicateHeaderMode`、`Constants`
+- **职责**：描述"一份 CSV 长什么样"——分隔符、引号、转义符、注释符、表头、空值字符串、重复表头策略、引号策略等约 25 项配置；同时内置了 11 种预定义方言（DEFAULT / EXCEL / RFC4180 / MYSQL / ORACLE / POSTGRESQL_CSV / POSTGRESQL_TEXT / MONGODB_CSV / MONGODB_TSV / INFORMIX_UNLOAD / INFORMIX_UNLOAD_CSV / TDF）。它是一个**不可变值对象 + 可变 Builder + 工厂方法**的组合。
+- **对外接口（其他子域消费的部分）**：
+  - `CSVFormat` 的全部 `getXxx()` / `isXxxSet()` getter（只读配置快照）
+  - `CSVFormat.parse(Reader)` → 构造一个 `CSVParser`（工厂方法）
+  - `CSVFormat.print(...)` / `printer()` → 构造一个 `CSVPrinter`（工厂方法）
+  - `CSVFormat.Builder.setXxx(...)` 全套流式设置方法 + `get()`/`build()`
+  - `CSVFormat.validate()`（私有，仅在构造时自检：分隔符/引号/转义符/注释符是否冲突，表头数组内部是否有重复/空名）
+- **内部依赖**：无——不依赖本仓库内任何其他子域的类（`QuoteMode`、`DuplicateHeaderMode`、`Constants` 本身也是叶子依赖）。
 
-| 子域 | 判定 | 判定理由 |
-| --- | --- | --- |
-| ③ CSV 词法切分 | **Core** | 正确识别带引号字段、转义字符、注释行、怪异 EOF、各种方言的细微差异，是任何 CSV 库"好不好用、靠不靠谱"的分水岭，且不能外包——没有通用的"CSV 词法分析器"库可以简单接进来替代。 |
-| ④ 记录解析与按名访问 | **Core** | 表头怎么解析、重复/空列名怎么判、大小写是否敏感、按名访问失败报什么错——这些直接决定库好不好调试、好不好排错，而且正是本次 `required headers` 新需求要改动的地方，印证了"高价值功能的扩展点总是落在核心子域"这条规律。 |
-| ① 格式定义 | Supporting | 代码体量最大（3369 行），但本质上是"数据项 + 流式 setter + 11 个预置方言常量"——没有算法，没有不确定性，是"体量大但逻辑简单"的典型反例。 |
-| ⑤ 输出打印 | Supporting | 机械地把内存数据套用格式规则写成文本，不需要处理"输入不可信"这种不确定性，复杂度远低于解析方向。 |
-| ② 底层字符 I/O | Generic | 带前瞻的缓冲字符读取是一个已经被解决过无数次的问题，没有必要也没有能力在这里"创新"。 |
+#### 子域 ②：底层字符 I/O（Character I/O）
 
-一个最容易踩的坑：**不要把子域①（格式定义）误判为 core，仅仅因为它文件最大、setter 方法最多**。代码体量和 Builder 模式、11 个预置常量这类"花活"会制造"这里很复杂"的错觉，但真正决定这个库好不好用的，是词法切分和记录解析两处——复杂度要看业务逻辑，并非看代码量。
+- **包含的类**：`ExtendedBufferedReader`
+- **职责**：在 Apache Commons IO 的 `UnsynchronizedBufferedReader` 基础上，加上单字符前瞻（peek）、BOM 剥离、行号/字符位置/字节位置跟踪。纯粹的字符读取基础设施，完全不知道"CSV"是什么。
+- **对外接口**：标准 `Reader` 风格方法（`read()`、`read(char[], int, int)`、`readLine()`、`mark()/reset()`、`close()`）外加 `peek(char[])`。
+- **内部依赖**：无——只包裹 `java.io.Reader`，不依赖仓库内其他类。被子域 ③（词法切分）单向依赖。
+
+#### 子域 ③：CSV 词法切分（Lexing / Tokenization）
+
+- **包含的类**：`Lexer`（package-private）、`Token`（package-private）
+- **职责**：按照 `CSVFormat` 给定的分隔符/引号/转义符/注释符规则，把字符流切分成一个个 `Token`（TOKEN / EORECORD / EOF / COMMENT）。这是真正"读懂 CSV 语法"的地方——怪异引号、转义、跨行字段、注释识别全部发生在这一层。
+- **对外接口**：
+  - 构造函数 `Lexer(CSVFormat format, ExtendedBufferedReader reader)`
+  - `Token nextToken(Token token)`（核心方法，调用方传入可复用的 `Token` 对象，由 `Lexer` 原地填充）
+  - `getCurrentLineNumber()` / `getCharacterPosition()` / `close()`
+- **内部依赖**：`Lexer → CSVFormat`（构造时只读取配置原始值，不持有引用）、`Lexer → ExtendedBufferedReader`（全部字符 I/O 经它）、`Lexer → Token`（填充）、`Lexer → CSVException`（遇到畸形引号/转义时抛出）。
+
+#### 子域 ④：记录解析与按名访问（Record Parsing & Header Mapping）
+
+- **包含的类**：`CSVParser`（含内部 `Builder`、内部静态类 `Headers`）、`CSVRecord`、`CSVException`
+- **职责**：驱动 `Lexer` 拉取 token，把它们组装成一行行 `CSVRecord`；同时**构建并持有"列名 → 列序号"的映射表**（`headerMap`），让使用者可以用 `record.get("currency")` 这种按名访问的方式读数据，而不必关心列的物理顺序。这是整个库里**业务规则最密集**的地方：重复列名怎么处理、空列名怎么处理、大小写是否敏感、是否要跳过表头行，全部在这里判定。
+- **对外接口（面向库的最终使用者，即训练场景里的"学员要改的代码"）**：
+  - `CSVParser` 的 6 个静态 `parse(...)` 工厂方法（File / InputStream / Path / Reader / String / URL）
+  - `CSVParser.Builder`（`setFormat()` 等）
+  - `getHeaderMap()` / `getHeaderNames()` / `getRecords()` / `iterator()` / `stream()` / `close()`
+  - `CSVRecord.get(int|String|Enum)`、`isMapped(String)`、`toMap()`、`toList()` 等
+- **内部依赖**：`CSVParser → CSVFormat`（持有一份只读拷贝）、`CSVParser → Lexer`（驱动它）、`CSVParser → ExtendedBufferedReader`（构造并转交给 Lexer）、`CSVParser → Token`（复用实例）、`CSVParser → CSVRecord`（逐行构造）、`CSVParser → DuplicateHeaderMode`（分支判断）、`CSVParser → CSVException`（解析序列不合法时抛出）；`CSVRecord → CSVParser`（反向持有，用于 `get(String)` 时回查 `parser.getHeaderMapRaw()`）。
+
+#### 子域 ⑤：输出打印（Output Printing）
+
+- **包含的类**：`CSVPrinter`
+- **职责**：把内存里的数据按 `CSVFormat` 的引号/分隔符/转义规则写成 CSV 文本——是子域④的逆操作，但逻辑上简单得多（不需要处理"畸形输入"这种不确定性，只需要机械地套用格式规则）。
+- **对外接口**：构造函数 `CSVPrinter(Appendable, CSVFormat)`；`printRecord(...)`、`printRecords(...)`、`printComment(String)`、`printHeaders(ResultSet)`、`flush()`、`close()`。
+- **内部依赖**：`CSVPrinter → CSVFormat`（唯一依赖，所有格式化决策都委托给它）。不依赖子域②③④的任何类。
 
 ### 2.2.4 可视化子域内部类之间的依赖关系
 
