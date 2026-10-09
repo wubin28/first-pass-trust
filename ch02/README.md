@@ -374,10 +374,11 @@ sequenceDiagram
 
 提示词里有几处用尖括号标记的占位符，需要你替换成自己机器上的实际信息：
 
-- `<CURRENT_DIRECTORY>`（你在 Agent 里设置的当前工作目录）
-- `<DIALOGS>.md`（保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续）
-- `<PATH_OF_DOC_SUBDOMAINS>.md` / `<PATH_OF_DOC_IMPACT_ANALYSIS>.md`（两份产出文档要保存的文件路径）
-- `<COMMONS_CSV_SRC_DIR>`（你要分析的代码库源码目录路径，可以从 `https://github.com/apache/commons-csv` 克隆到本地）。
+- `<CURRENT_DIRECTORY>`：你在 Agent 里设置的当前工作目录
+- `<DIALOGS>.md`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
+- `<SUBDOMAINS_DOC_PATH>.md`：子域分析文档的相对路径
+- `<IMPACT_ANALYSIS_DOC_PATH>.md`：影响分析文档的相对路径
+- `<COMMONS_CSV_REPO_PATH>`：你要分析的代码库源码目录路径，可以从 `https://github.com/apache/commons-csv` 克隆到本地
 
 既然 Agent 能够在你本地电脑上执行操作，那么推荐你在本地电脑为实操创建一个空目录，比如目录名可以叫 `<CURRENT_DIRECTORY>`；然后在终端里进入这个目录，并启动你常用的 Agent ，比如 OpenCode V2 ，并搭配你常用的大模型，比如 DeepSeek V4.1 Flash；之后就可以把已经替换好上述占位符的完整提示词复制给 Agent，开始实操。在“假设体检加追问”阶段，你能在这个目录中找到 Agent 生成的对话记录文件 `<DIALOGS>.md` ，方便你查看，以及当 Agent 因故中断后能换一个 Agent 继续。
 
@@ -460,13 +461,13 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 - **文档 SUBDOMAINS（子域识别）**：识别 commons-csv 代码库里的所有 subdomain，标注每个子域包含的 Java 类名、职责、对外接口、相互依赖关系，然后判断每个子域是 core / generic / supporting，并说明依赖关系与接口。请以markdown格式将上述文档 SUBDOMAINS 保存到以下文件中：
 
 ```
-<PATH_OF_DOC_SUBDOMAINS>.md
+<SUBDOMAINS_DOC_PATH>.md
 ```
 
 - **文档 IMPACT_ANALYSIS（新需求影响分析）**：假设要在这个代码库上新增一个具体需求（需求原文见 4.6 ），分析这个需求会牵动哪些子域、哪些类，子域之间的接口会发生什么变化。请以markdown格式将上述文档 IMPACT_ANALYSIS 保存到以下文件中：
 
 ```
-<PATH_OF_DOC_IMPACT_ANALYSIS>.md
+<IMPACT_ANALYSIS_DOC_PATH>.md
 ```
 
 这两份文档是用来帮我（以及其他和我一起培训的同学）熟悉这个陌生代码库的，所以**过程和依据比结论更重要**——请把"你是怎么判断出来的"写清楚，不要只给结论表格。
@@ -489,7 +490,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 请分析下面这个目录下的全部 `.java` 生产代码文件（不包括测试代码、benchmark 代码）：
 
 ```
-<COMMONS_CSV_SRC_DIR>
+<COMMONS_CSV_REPO_PATH>
 ```
 
 - 如果你有读取本机文件系统的能力：请直接遍历并读取该目录下所有 `.java` 文件。
