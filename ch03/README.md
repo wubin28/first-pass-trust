@@ -2,6 +2,8 @@
 
 # 第三章 设计面向验收测试的 Spec
 
+按照本章后面的提示词在你自己的 Agent 上实操一遍后，你将学会用 ADR 裁决需求里没讲清楚的开放设计问题，再用决策表测试法系统性地推导出一份不遗漏、不重复的验收测试用例清单。
+
 在让 Agent 针对新需求生成生产代码之前，如何判断 Agent 生成的验收测试用例能全面覆盖新需求的业务且没有遗漏和重复？
 
 第二章的影响分析已经确定了改动会落在哪些类，也留下了 5 个开放设计问题没有裁决。本章要做两件事：先用轻量的 [ADR](https://adr.github.io/)（Architecture Decision Record）把这些开放问题逐一裁决，再用 [Decision Table Testing](https://www.virtuosoqa.com/post/decision-table-testing)（决策表测试法）把裁决结果系统性地推导成一份不遗漏、不重复的验收测试用例清单。
@@ -749,6 +751,8 @@ These techniques are complementary. Equivalence partitioning reduces continuous 
 </details>
 
 跑完之后，数一数你的 Agent 推导出多少条规则、多少个测试用例，和本章的 11 条规则、11 个测试用例对比——如果数字差异很大，回头看看是否漏掉了某个条件之间的依赖关系，或者把本该合并的等价类拆成了多条规则。
+
+验收测试用例清单推导出来了，但它们目前还只是文档里的表格，离"能跑起来、能保护代码"还差一步。第四章会把这份清单落地成真正可执行的自动化验收测试——用 Approved Scenarios 模式，让每条用例对应一份产品经理也能读懂的 markdown fixture，再配合 TDD 的红绿重构节奏，把生产代码补齐到能让这些测试全部通过，这是"构建"这一步要交付的东西。
 
 ---
 
