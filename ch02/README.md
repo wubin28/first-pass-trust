@@ -24,7 +24,7 @@
 ## 2.1 热身阶段单步调试指南：用现有行为的测试理解 commons-csv
 
 > [!NOTE]
-> 本节内容对应困境二——AI 讲的架构、时序图听起来很有道理，但哪些是真的在代码里发生的，光听转述说不清。在正式用 DDD strategic design 拆子域之前，先亲手单步调试一遍代码库里现有的验收测试，把"听 AI 说"换成"亲眼看代码真的怎么跑"。本节内容配合新增的特征测试类 [`HeaderHandlingWarmupCharacterizationTest`](./src/test/java/org/apache/commons/csv/kata/HeaderHandlingWarmupCharacterizationTest.java)（只须把这个测试文件复制到你克隆下来的 `commons-csv` 仓库里的 `src/test/java/org/apache/commons/csv/kata/` 目录下即可），下面每一节对应一个测试方法，给出断点位置、值得观察的变量、以及这条测试和 `required headers` 新需求之间的关系。本节内容由本章 2.5 节"动手练习提示词"中的第一份"热身提示词"产出；你也可以先浏览本节内容，再自己跑一遍那份提示词，对比复盘。
+> 本节内容对应困境二——AI 讲的架构、时序图听起来很有道理，但哪些是真的在代码里发生的，光听转述说不清。在正式用 DDD strategic design 拆子域之前，先亲手单步调试一遍代码库里现有的验收测试，把"听 AI 说"换成"亲眼看代码真的怎么跑"。本节内容配合新增的特征测试类 [`HeaderHandlingWarmupCharacterizationTest`](./src/test/java/org/apache/commons/csv/kata/HeaderHandlingWarmupCharacterizationTest.java)（只须把这个测试文件复制到你克隆下来的 `commons-csv` 仓库里的 `src/test/java/org/apache/commons/csv/kata/` 目录下即可；注意，下面的代码行号都是基于 `commons-csv` 代码库以下版本：`c6ac1bde - 2026-09-29 19:42:01 [test] Bump org.apache.commons:commons-lang3 from 3.20.0 to 3.21.0 - Gary Gregory`），下面每一节对应一个测试方法，给出断点位置、值得观察的变量、以及这条测试和 `required headers` 新需求之间的关系。本节内容由本章 2.5 节"动手练习提示词"中的第一份"热身提示词"产出；你也可以先浏览本节内容，再自己跑一遍那份提示词，对比复盘。
 
 ### 2.1.1 开始之前：运行命令
 
