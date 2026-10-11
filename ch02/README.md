@@ -40,7 +40,7 @@ mvn test
 
 实测结果：新增测试类共 9 个测试方法，全部通过；加入这批测试后，全量测试从 985 个增加到 **994 个，0 个失败、0 个错误、11 个跳过**（跳过的用例和本次改动无关，是代码库里已有的、本身就被跳过的用例）。
 
-**VSCode 操作提示**：打开 Testing 面板后，先对 `HeaderHandlingWarmupCharacterizationTest` 整体 Run 一次——JUnit 5 的测试实例是运行时才计算出来的，面板需要先跑一次才会展开出 9 个独立的测试方法节点，之后就可以对每个方法单独右键 "Debug Test"。
+**VSCode 操作提示**：打开 Testing 面板（点击VSCode 左侧侧边栏烧瓶图标）后，先对 `HeaderHandlingWarmupCharacterizationTest` 整体 Run 一次——JUnit 5 的测试实例是运行时才计算出来的，面板需要先跑一次才会展开出 9 个独立的测试方法节点，之后就可以对每个方法单独右键 "Debug Test"。
 
 ### 2.1.2 整体结构速览
 
