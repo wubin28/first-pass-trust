@@ -8,17 +8,197 @@
 
 > [!TIP]
 > **TL;DR · 读完本章你会：**
+> - 学会先用单步调试代码库里现有的自动化验收测试，亲眼核实 AI 讲的代码行为是不是真的在代码里发生；
 > - 学会用 DDD strategic design 把一个陌生棕地代码库拆成 core / generic / supporting 子域，分清哪里值得细读、哪里扫一眼接口就够；
 > - 看到这套方法套在 `commons-csv` 上的真实判定结果——词法切分、记录解析是 core，格式定义、输出打印是 supporting，字符 I/O 是 generic；
 > - 学会识别"代码行数大≠业务逻辑复杂"这个最容易踩的坑；
 > - 看到 `required headers` 新需求如何被精确定位到该落脚的子域和类，而非凭直觉改动。
 
 <a id="ch2-toc"></a>
-**本章目录**：[2.1 用 strategic design 理解陌生代码库](#ch2-1) · [2.2 识别核心、支撑与通用子域](#ch2-2) · [2.3 新需求影响分析](#ch2-3) · [2.4 动手练习提示词](#ch2-hands-on)
+**本章目录**：[2.1 热身单步调试](#ch2-1) · [2.2 用 strategic design 理解陌生代码库](#ch2-2) · [2.3 识别核心、支撑与通用子域](#ch2-3) · [2.4 新需求影响分析](#ch2-4) · [2.5 动手练习提示词](#ch2-hands-on)
 
 <a id="ch2-1"></a>
 
-## 2.1 用 DDD 的 strategic design 快速理解陌生代码库并分清主次
+## 2.1 热身阶段单步调试指南：用现有行为的测试理解 commons-csv
+
+> [!NOTE]
+> 本节内容对应困境二——AI 讲的架构、时序图听起来很有道理，但哪些是真的在代码里发生的，光听转述说不清。在正式用 DDD strategic design 拆子域之前，先亲手单步调试一遍代码库里现有的验收测试，把"听 AI 说"换成"亲眼看代码真的怎么跑"。本节内容配合新增的特征测试类 `HeaderHandlingWarmupCharacterizationTest`，下面每一节对应一个测试方法，给出断点位置、值得观察的变量、以及这条测试和 `required headers` 新需求之间的关系。本节内容由本章 2.5 节"动手练习提示词"中的第一份"热身提示词"产出；你也可以先浏览本节内容，再自己跑一遍那份提示词，对比复盘。
+
+### 2.1.1 开始之前：运行命令
+
+在代码库根目录（`<COMMONS_CSV_REPO_PATH>`）下执行：
+
+```bash
+# 只运行本次新增的热身测试
+mvn test -Dtest=HeaderHandlingWarmupCharacterizationTest
+
+# 运行全量测试，确认没有破坏任何已有测试
+mvn test
+```
+
+实测结果：新增测试类共 9 个测试方法，全部通过；加入这批测试后，全量测试从 985 个增加到 **994 个，0 个失败、0 个错误、11 个跳过**（跳过的用例和本次改动无关，是代码库里已有的、本身就被跳过的用例）。
+
+**VSCode 操作提示**：打开 Testing 面板后，先对 `HeaderHandlingWarmupCharacterizationTest` 整体 Run 一次——JUnit 5 的测试实例是运行时才计算出来的，面板需要先跑一次才会展开出 9 个独立的测试方法节点，之后就可以对每个方法单独右键 "Debug Test"。
+
+### 2.1.2 整体结构速览
+
+新增测试文件：`src/test/java/org/apache/commons/csv/kata/HeaderHandlingWarmupCharacterizationTest.java`
+
+所有测试方法都会间接调用生产代码里的同一个关键方法——`CSVParser.createHeaders()`（`src/main/java/org/apache/commons/csv/CSVParser.java` 第 628～683 行）。这个方法在 `CSVParser` 的构造函数里被**同步**调用（见 `CSVParser.java` 第 528 行：`this.headers = createHeaders();`），这正是"必须在读第一条记录之前报错"这句话能够成立的结构性原因——调用方要拿到 `CSVParser` 实例，就必须等 `createHeaders()` 执行完。
+
+下面每一节对应一个测试方法，给出：断点位置（类名 + 行号 + 该行代码原文）、值得观察的变量、以及这条测试和 `required headers` 新需求之间的关系。
+
+### 2.1.3 场景 1：无表头 CSV，按下标取值
+
+**测试方法**：`headerlessCsv_accessesFieldsByIndex`（`HeaderHandlingWarmupCharacterizationTest.java` 第 47～62 行）
+
+- **断点**：`CSVParser.java` 第 631 行 `final String[] formatHeader = format.getHeader();`
+- **观察变量**：`formatHeader` —— 单步执行会看到它是 `null`（因为测试用的 `CSVFormat.DEFAULT` 从未调用 `setHeader(...)`）。
+- **为什么看这个变量**：第 632 行 `if (formatHeader != null)` 是整个 `createHeaders()` 方法里唯一的"大分支"——`formatHeader == null` 时，方法直接跳到第 682 行，返回一个 `headerMap` 为 `null` 的 `Headers` 对象，完全不建立任何名字到列号的映射。这就是为什么这条测试只能用 `record.get(0)`、`record.get(1)` 这种下标访问，`parser.getHeaderMap()` 返回 `null`。
+- **和 required headers 的关系**：这条路径天然不受 required headers 影响——没有表头就没有"缺列"这个概念，`setRequiredHeaders(...)` 的校验逻辑不应该在 `formatHeader == null` 时触发。
+
+### 2.1.4 场景 2：带表头 CSV，自动探测第一行为表头，按列名取值
+
+**测试方法**：`autoDetectedHeader_firstRowBecomesColumnNames`（第 65～81 行）
+
+- **断点 1**：`CSVParser.java` 第 635 行 `if (formatHeader.length == 0) {`
+- **观察变量**：`formatHeader` —— 此时是一个**长度为 0 的空数组**（`setHeader()` 不传参数的效果），并非 `null`。这是本节和场景 1 的关键区别：`formatHeader == null` 和 `formatHeader.length == 0` 是两条不同的判断，分别对应"完全不处理表头"和"自动从第一行探测表头"。
+- **断点 2**：第 637 行 `final CSVRecord nextRecord = nextRecord();`——单步执行后观察 `nextRecord.values()`，会看到 `["date", "amount", "currency"]`，这一行物理数据被当成了表头，不会出现在后续 `getRecords()` 的结果里。
+- **断点 3**：第 672 行 `headerMap.put(header, Integer.valueOf(i));`——循环三次，`headerMap` 逐步变成 `{date=0, amount=1, currency=2}`。
+- **和 required headers 的关系**：这正是 required headers 最该生效的主路径——`headerMap` 在这里已经完全建好，但还没有任何"是否包含必需列"的检查。
+
+### 2.1.5 场景 3a：手工指定表头 + 跳过首行（正确用法）
+
+**测试方法**：`manuallySpecifiedHeader_withSkipHeaderRecordTrue_dataRowCountIsCorrect`（第 84～101 行）
+
+- **断点**：第 643 行 `if (format.getSkipHeaderRecord()) {`
+- **观察变量**：`format.getSkipHeaderRecord()` 为 `true`；单步进入分支后，第 644 行的 `nextRecord` 会读到字面上的表头行 `["date", "amount", "currency"]`，但这次只用它取 `headerComment`（第 646 行），**不会**把它当作数据使用——它被"消费掉"了，不会出现在后续 `getRecords()` 里。
+- **为什么看这个变量**：第 649 行 `headerRecord = formatHeader;` 说明手工指定模式下，真正用来建立 `headerMap` 的 `headerRecord` 来自**你在 `setHeader(...)` 里写的字符串数组**，而并非从输入流读出来的内容——第 644 行读出的那一行，唯一的作用就是"被跳过"。
+
+### 2.1.6 场景 3b：手工指定表头但忘记跳过首行（真实踩过的坑）
+
+**测试方法**：`manuallySpecifiedHeader_withoutSkipHeaderRecord_literalHeaderRowLeaksInAsData`（第 104～125 行）
+
+- **断点**：第 643 行同上，但这次 `format.getSkipHeaderRecord()` 为 `false`，整个 `if` 分支被跳过，直接执行第 649 行。
+- **观察变量**：单步执行到 `parser.getRecords()` 后，`records.size()` 是 **2**，并非预期的 1——`records.get(0).get("date")` 的值是字符串 `"date"`（字面意义上的表头文字），而并非一条真正的数据。
+- **这是一个真实的、值得记住的坑**：手工指定表头（`setHeader("date", "amount", "currency")`）**不会**自动消费输入流的第一行；如果那一行恰好也写了一遍表头文字，又没有显式 `setSkipHeaderRecord(true)`，它会被当成一条多余的数据记录混进结果里，导致记录数被多算一条。本次热身过程里这个坑被真实复现，而并非凭空转述。
+- **和 required headers 的关系**：如果 required headers 的校验逻辑写错了插入位置（比如写在"读表头之后"而非"建好 headerMap 之后"），这种"表头到底被不被跳过"的歧义会让校验结果变得不可预测——这也是 2.4.5 节开放问题第 5 条（"自动探测 vs 手工指定两种模式下校验时机是否一致"）在真实代码里的具体体现。
+
+### 2.1.7 场景 4：重复列名（默认容忍，可配置禁止）
+
+**测试方法 A**：`duplicateHeaderNames_defaultFormatAllowsThemByDefault`（第 128～148 行）
+
+- **断点**：第 663 行 `final boolean duplicatesAllowed = headerMode == DuplicateHeaderMode.ALLOW_ALL;`
+- **观察变量**：`format.getDuplicateHeaderMode()`——对 `CSVFormat.DEFAULT.builder()` 产出的格式，这个值是 `ALLOW_ALL`。这是一处容易弄错的细节：`DuplicateHeaderMode` 枚举自身的 Java 默认值并非 `ALLOW_ALL`，但 `CSVFormat.Builder.create()`（`CSVFormat.java` 第 214～223 行，关键在第 221 行 `.setDuplicateHeaderMode(DuplicateHeaderMode.ALLOW_ALL)`）在构造默认 `Builder` 时**显式**把它设成了 `ALLOW_ALL`——而几乎所有读者会通过 `CSVFormat.DEFAULT.builder()` 这条路径拿到 `Builder`，所以实际观察到的默认行为就是"允许重复列名"。
+- **断点 2**：第 672 行 `headerMap.put(header, Integer.valueOf(i));`——对输入 `"a,a,b"`，这一行会被执行两次把 `"a"` 映射到不同的 `i`（0 和 1），`Map.put` 会用后一次的值覆盖前一次，所以最终 `headerMap.get("a")` 等于 **1**（最后一次出现的列号），并非 0。
+
+**测试方法 B**：`duplicateHeaderNames_disallowModeThrowsBeforeFirstRecord`（第 150～162 行）
+
+- **断点**：第 665～669 行，即 `if (containsHeader && !duplicatesAllowed && !(blankHeader && emptyDuplicatesAllowed)) { throw new IllegalArgumentException(...); }`
+- **观察变量**：`containsHeader`（第二次遇到 `"a"` 时为 `true`）、`duplicatesAllowed`（显式设置 `DuplicateHeaderMode.DISALLOW` 后为 `false`）——两者组合触发第 666～668 行的异常，消息里包含 `"duplicate name"`。
+- **调用栈验证"即刻失败"**：在这个断点往上翻一帧，能看到调用栈停在 `CSVParser` 的构造函数（第 528 行）内部，而并非任何遍历记录的代码路径里——证明这类异常在拿到第一条记录之前就已经抛出。
+
+### 2.1.8 场景 5：空列名（默认禁止，可配置允许）
+
+**测试方法 A**：`emptyHeaderName_disallowedByDefault_throwsBeforeFirstRecord`（第 164～175 行）
+
+- **断点**：第 658～660 行 `if (blankHeader && !format.getAllowMissingColumnNames()) { throw new IllegalArgumentException("A header name is missing in " + ...); }`
+- **观察变量**：`blankHeader`（第 657 行 `CSVFormat.isBlank(header)` 对输入 `"date,,currency"` 中间那一列算出的结果为 `true`）、`format.getAllowMissingColumnNames()`（默认 `false`）。
+
+**测试方法 B**：`emptyHeaderName_allowedWhenAllowMissingColumnNamesTrue`（第 177～196 行）
+
+- **断点**：第 671～677 行，尤其是第 672 行 `headerMap.put(header, Integer.valueOf(i));`
+- **观察变量**：这是本次热身过程中一个**真实纠正过预期**的发现——`header` 在这里的值是空字符串 `""`，并非 `null`；第 671 行的判断条件是 `if (header != null)`，空字符串满足这个条件，所以它**会**被当作一个真实的列名放进 `headerMap` 和 `headerNames` 里。单步执行后展开 `headerMap`，能直接看到一个字面意义上的 `""` 键，和 `"date"`、`"currency"` 排在一起——这意味着 `parser.getHeaderNames().contains("")` 为 `true`，而并非被静默丢弃。写这份热身测试时最初假设空列名会被跳过，实跑后断言失败才发现这个真实行为，这正是"单步调试比凭直觉理解控制流更可信"的一次现场示范。
+
+### 2.1.9 场景 6：今天"缺列"只能惰性报错（required headers 的直接动机）
+
+**测试方法**：`missingRequiredColumn_todayOnlyFailsLazilyWhenGetIsCalled`（第 199～220 行）
+
+- **断点 1**：`CSVParser.java` 第 528 行 `this.headers = createHeaders();`——单步执行完这一行，`CSVParser` 的构造已经**成功返回**，即使 `headerMap` 里根本没有 `"currency"` 这一列。这就是需求原文里吐槽的体验的根源：header map 缺列这件事，在这一步完全没有被检查。
+- **断点 2**：`CSVRecord.java` 第 136～137 行 `if (index == null) { throw new IllegalArgumentException(String.format("Mapping for %s not found, expected one of %s", name, headerMap.keySet())); }`
+- **观察变量**：`index`（`headerMap.get("currency")` 的结果，为 `null`，因为 `headerMap` 只有 `date` 和 `amount` 两个键）、异常消息实测文本：`"Mapping for currency not found, expected one of [date, amount]"`——和需求原文里描述的报错体验完全一致。
+- **required headers 的插入点**：对比断点 1（第 528 行，构造已成功返回）和断点 2（只有业务代码真的调用 `get("currency")` 才会触发），可以直接看到两者之间有一段"本该报错但没有报错"的空当。`setRequiredHeaders(...)` 要做的事，就是在这段空当里插入一次主动检查——具体插入位置见下一节。
+
+### 2.1.10 required headers 新需求：生产代码的插入位置
+
+以下两处位置是**未来**实现 `setRequiredHeaders(String...)` 时会用到的，本次热身**没有**对它们做任何修改——这里只是标注清楚、留给后续章节。
+
+#### 2.1.10.1 `CSVFormat.Builder` 新增配置项，可以模仿的现有写法
+
+`CSVFormat.java` 第 627～630 行：
+
+```java
+public Builder setHeader(final String... header) {
+    this.headers = CSVFormat.clone(header);
+    return this;
+}
+```
+
+未来的 `setRequiredHeaders(String...)` 可以模仿这个形状——新增一个 `private String[] requiredHeaders;` 字段（可以紧邻第 249 行 `private String[] headers;` 声明），再加一个结构相同的 `setRequiredHeaders` 方法。`CSVFormat.Builder.create()`（第 214～223 行）目前只显式设置了 `setDuplicateHeaderMode(DuplicateHeaderMode.ALLOW_ALL)`，没有也不需要给 `requiredHeaders` 设默认值——保持 Java 默认的 `null`（即"不启用"）即可，这样对现有调用方完全向后兼容。
+
+#### 2.1.10.2 `CSVParser.createHeaders()` 新增校验，精确的插入行号
+
+`CSVParser.java`：
+
+```
+678                 }
+679             }
+680         }
+```
+
+插入点在**第 678 行（`for` 循环的右花括号）之后、第 679 行（`if (headerRecord != null)` 代码块的右花括号）之前**——也就是说，新代码应该成为第 679 行，把现有的第 679～680 行依次下移。选在这里而并非循环内部或循环之前，原因是：
+
+- 此时 `headerMap` 已经**完整建好**（第 652～678 行的循环已经跑完，包括重复名、空名的校验都已经处理过），required headers 的检查理应在"看到完整的列集合"之后才做，不要和"逐列扫描"的循环逻辑搅在一起。
+- 这整段代码仍然在 `createHeaders()` 方法体内，而 `createHeaders()` 又是在构造函数（第 528 行）里被**同步**调用的——所以只要新代码写在 `createHeaders()` 返回（第 682 行）之前，"必须在读第一条记录之前报错"这个约束就自动满足，不需要任何"预读一行再回退"之类的额外机制。这一点可以在断点 1（本文档第 2.1.9 节）单步验证：调用栈里能看到 `createHeaders()` 完全在构造函数内部执行完毕。
+
+插入的代码大致形状（示意，并非最终实现，异常类型/消息格式等留给后续章节的决策表裁决）：
+
+```java
+if (headerRecord != null) {
+    // ...既有的第 652～678 行...
+}
+// 新增：headerMap 已经完整建好，在这里检查 requiredHeaders
+if (format.getRequiredHeaders() != null) {
+    final List<String> missing = new ArrayList<>();
+    for (final String required : format.getRequiredHeaders()) {
+        if (headerMap == null || !headerMap.containsKey(required)) {
+            missing.add(required);
+        }
+    }
+    if (!missing.isEmpty()) {
+        throw new IllegalArgumentException("Missing required header(s): " + missing);
+    }
+}
+```
+
+### 2.1.11 本次热身过程中真实踩过的坑（汇总）
+
+- **空列名并非被丢弃，而是变成字面意义上的 `""` 键**（见 2.1.8 节测试方法 B）——写测试时最初的预期是错的，靠断言失败和单步调试才纠正过来。
+- **`DuplicateHeaderMode` 的实际默认值来自 `CSVFormat.Builder.create()` 的显式设置（`ALLOW_ALL`），而并非枚举或字段本身的 Java 默认值**（见 2.1.7 节）——和本书其他章节记录过的教训一致：不要相信文字描述的默认值，要去源码核实。
+- **手工指定表头不会自动跳过输入流的第一行**，这个坑被真实复现（见 2.1.6 节）——如果测试数据的第一行恰好又写了一遍表头文字，又没有显式设置 `setSkipHeaderRecord(true)`，记录数会被多算一条。
+- 本次新增的测试代码使用了 `List.of(...)`，在本机的 Java 构建配置下编译失败（`cannot find symbol: method of(...)`），说明目标代码库的 `maven-compiler-plugin` 源代码级别低于 Java 9——改用 `Arrays.asList(...)` 后问题消失。如果你在自己的环境里复现，遇到同样的编译错误，这是最常见的原因。
+
+### 2.1.12 行号对照表
+
+| 类 | 方法/字段 | 行号 | 说明 |
+| --- | --- | --- | --- |
+| `CSVParser` | 构造函数，`this.headers = createHeaders();` | 528 | `createHeaders()` 同步调用点，"必须先于第一条记录报错"的结构性保证 |
+| `CSVParser` | `createHeaders()` 方法体 | 628～683 | 表头解析与校验的核心方法 |
+| `CSVParser` | `formatHeader != null` 判断 | 632 | 是否启用表头模式的总开关 |
+| `CSVParser` | `formatHeader.length == 0` 判断 | 635 | 自动探测 vs 手工指定的分支点 |
+| `CSVParser` | 跳过首行逻辑 | 643～648 | `setSkipHeaderRecord(true)` 生效的位置 |
+| `CSVParser` | 空列名校验与抛出 | 658～660 | `allowMissingColumnNames=false` 时的即时失败 |
+| `CSVParser` | 重复列名校验与抛出 | 662～669 | `DuplicateHeaderMode` 的分支判断 |
+| `CSVParser` | `headerMap.put(...)` | 672 | 名字到列号映射的实际写入点 |
+| `CSVParser` | **required headers 建议插入点** | **679（新增，原 679～680 下移）** | 见本文档 2.1.10.2 节 |
+| `CSVFormat.Builder` | `create()`，`setDuplicateHeaderMode(ALLOW_ALL)` | 214～223（关键在 221） | `CSVFormat.DEFAULT.builder()` 的真实默认值 |
+| `CSVFormat.Builder` | `setHeader(String...)`（`setRequiredHeaders` 可模仿的形状） | 627～630 | 见本文档 2.1.10.1 节 |
+| `CSVRecord` | `get(String)`，缺列异常 | 130～137（抛出在 136～137） | 今天"缺列"只能惰性报错的位置 |
+| 新增测试类 | `HeaderHandlingWarmupCharacterizationTest` | 全文件 222 行 | 本文档 2.1.3～2.1.9 节对应的测试方法都在这个文件里 |
+
+<a id="ch2-2"></a>
+
+## 2.2 用 DDD 的 strategic design 快速理解陌生代码库并分清主次
 
 <a id="ch2-def"></a>
 
@@ -62,9 +242,9 @@ strategic design 原本是为公司和团队设计的分析工具，用在一个
 
 业务逻辑单一、简单且代码库体量极小，几个类就能全部读完（这种情况下，"子域"这个分析单元本身意义不大，不如直接读代码）；此外，如果团队本身就是多团队协作、跨 bounded context 的大型系统，Ch.4 的整合模式应该按字面意义严格使用，而并非作为比喻。
 
-<a id="ch2-2"></a>
+<a id="ch2-3"></a>
 
-## 2.2 识别核心、支撑与通用子域
+## 2.3 识别核心、支撑与通用子域
 
 > [!NOTE]
 > 从这里到本章"动手练习提示词"之间所展示的内容，就是作者在添加新功能之前“理解代码所承载的复杂业务逻辑”时与 Claude Code 搭配 Sonnet 5 用"假设体检 + 追问"提示词共创出来的结果。你可以先快速浏览，然后复制本章后半部分的[动手练习提示词](#ch2-hands-on)给你的 Agent ，自己动手跑一遍，再回来和本章上述所展示的内容对比复盘，看看自己的产出有什么差异、这些差异是否合理。
@@ -74,9 +254,9 @@ strategic design 原本是为公司和团队设计的分析工具，用在一个
 
 在正式动手拆分 `commons-csv` 之前，先把三个分类标准说清楚：**核心子域**（core subdomain）指的是这个代码库"赖以立身"的那部分业务规则——它复杂、容易出错、且没有现成方案可以照搬，往往也是新需求真正要落脚的地方；**支撑子域**（supporting subdomain）指的是业务逻辑简单、更像是"数据录入/配置项"性质的部分——没有太多算法含量，但库的运转离不开它；**通用子域**（generic subdomain）指的是任何项目都会用同样方式解决的通用问题（比如字符读取、日志），业界早有成熟方案，不需要自己重新发明。
 
-把这三类标签贴到一个陌生代码库上,能带来两个立竿见影的好处：一是帮你把有限的阅读精力花在刀刃上——核心子域值得逐行细读、搞清楚每条分支的业务含义，支撑和通用子域往往扫一眼接口签名就够了，不需要通读实现；二是帮你在评估一个新需求的改动范围时，快速判断"这个改动会不会牵动真正复杂的业务规则"，而不被"改动挂在哪个类的 API 上"这个表面现象带偏——2.2.3 节会用 `commons-csv` 的真实判定结果，具体示范这套标签怎么用。
+把这三类标签贴到一个陌生代码库上,能带来两个立竿见影的好处：一是帮你把有限的阅读精力花在刀刃上——核心子域值得逐行细读、搞清楚每条分支的业务含义，支撑和通用子域往往扫一眼接口签名就够了，不需要通读实现；二是帮你在评估一个新需求的改动范围时，快速判断"这个改动会不会牵动真正复杂的业务规则"，而不被"改动挂在哪个类的 API 上"这个表面现象带偏——2.3.3 节会用 `commons-csv` 的真实判定结果，具体示范这套标签怎么用。
 
-### 2.2.1 把代码库看作业务域
+### 2.3.1 把代码库看作业务域
 
 把 `commons-csv` 当作一个业务域来看，需要先做一次类比映射——这是一次刻意的方法论改造，并非教科书原文：
 
@@ -90,7 +270,7 @@ strategic design 原本是为公司和团队设计的分析工具，用在一个
 
 这个类比映射本身就是后面所有 core/generic/supporting 判断的起点——先承认"这是一次类比，并非字面意义上的 DDD"，后续的分析才站得住脚。
 
-### 2.2.2 用来验证子域边界的端到端测试场景
+### 2.3.2 用来验证子域边界的端到端测试场景
 
 子域边界应该对应一组内聚的用例集合，而并非凭直觉按文件名硬划。下面是针对 CSV 文件处理的典型端到端场景，用来交叉验证代码依赖关系得出的子域划分是否"讲得通"：
 
@@ -106,9 +286,9 @@ strategic design 原本是为公司和团队设计的分析工具，用在一个
 
 这 7 个场景分别落在后面识别出的子域上：S1/S2/S6/S7 落在"记录解析与按名访问"；S3/S4 横跨"词法切分"与"记录解析"；S5 落在"输出打印"；S1～S7 全部都要先经过"格式定义"子域来描述方言。子域边界与真实使用场景对齐，而非凭空按文件名分的——这是验证子域划分是否可靠的关键一步，很多人跳过这一步直接凭直觉分类，容易把边界划错。
 
-### 2.2.3 识别核心、支撑与通用子域
+### 2.3.3 识别核心、支撑与通用子域
 
-commons-csv 的 package 结构是扁平的单一 package（`org.apache.commons.csv`），所以下面的子域边界是在**类簇/职责簇**粒度上划的，不是 package 粒度。
+commons-csv 的 package 结构是扁平的单一 package（`org.apache.commons.csv`），所以下面的子域边界是在**类簇/职责簇**粒度上划的，并非 package 粒度。
 
 #### 子域 ①：格式定义（Format Definition / CSV 方言配置）
 
@@ -157,7 +337,7 @@ commons-csv 的 package 结构是扁平的单一 package（`org.apache.commons.c
 - **对外接口**：构造函数 `CSVPrinter(Appendable, CSVFormat)`；`printRecord(...)`、`printRecords(...)`、`printComment(String)`、`printHeaders(ResultSet)`、`flush()`、`close()`。
 - **内部依赖**：`CSVPrinter → CSVFormat`（唯一依赖，所有格式化决策都委托给它）。不依赖子域②③④的任何类。
 
-### 2.2.4 可视化子域内部类之间的依赖关系
+### 2.3.4 可视化子域内部类之间的依赖关系
 
 ```mermaid
 graph LR
@@ -209,7 +389,7 @@ graph LR
 
 红色 = 后面判定为 core 的子域；黄色 = supporting；灰色 = generic。虚线箭头表示"作为工厂方法被动构造"，并非结构性耦合——`CSVFormat` 并不持有对 `CSVParser`/`CSVPrinter` 的引用，只是它们的构造入口之一。
 
-### 2.2.5 可视化子域之间的协作关系
+### 2.3.5 可视化子域之间的协作关系
 
 ```mermaid
 graph TB
@@ -241,15 +421,15 @@ graph TB
 - 子域④依赖子域②③的方式类似**customer–supplier**里"customer 完全主导，supplier 没有自己的对外契约"——`Lexer`/`ExtendedBufferedReader` 的接口形状完全是为了服务 `CSVParser` 设计的。
 - 子域④/⑤对外（面向库使用者）的 `CSVRecord.get(...)` / `printRecord(...)` 才是真正意义上的**open-host service**：这是 commons-csv 对全世界 Java 项目公开的"published language"，任何改动都要考虑向后兼容。
 
-<a id="ch2-3"></a>
+<a id="ch2-4"></a>
 
-## 2.3 新需求实现的影响分析
+## 2.4 新需求实现的影响分析
 
 有了上面这张子域地图，现在可以正式分析 `required headers` 需求原文：
 
 > 我在维护 Apache Commons CSV。我们对账时，上游 CSV 应当包含若干固定列。我想给 `CSVFormat.Builder` 加一个 `setRequiredHeaders(String...)`：解析时一旦发现表头缺少这些列，就在读第一条记录之前抛出一个清楚说明缺了哪些列的错误，而不用等业务代码调用 `record.get("currency")` 时才报 `Mapping for currency not found`。
 
-### 2.3.1 代码现状
+### 2.4.1 代码现状
 
 表头相关的校验目前已经发生在三个地方，这是理解"新检查该插在哪"的关键背景：
 
@@ -262,7 +442,7 @@ graph TB
 
 可以看到：**"缺列"这类问题，今天完全没有专门校验**——`CSVFormat.validate()` 只能校验"声明的表头形状本身"，因为它根本看不到输入数据；真正的缺列问题，只有在业务代码第一次按名取值时才会暴露，且报错信息完全不提"表头出了什么问题"，只说"这个名字找不到"——这正是需求描述里吐槽的体验。
 
-### 2.3.2 需要改动哪些子域
+### 2.4.2 需要改动哪些子域
 
 ```mermaid
 graph TB
@@ -270,7 +450,7 @@ graph TB
     IO["② 底层字符 I/O<br/>✅ 不变"]
     LEX["③ CSV 词法切分<br/>✅ 不变"]
     PARSE["④ 记录解析与按名访问<br/>CSVParser / CSVRecord<br/><b>🔧 createHeaders() 新增校验</b>"]
-    PRINT["⑤ 输出打印<br/>✅ 不变（讨论见 2.3.5）"]
+    PRINT["⑤ 输出打印<br/>✅ 不变（讨论见 2.4.5）"]
 
     FMT -- "published language 新增一个<br/>可选属性（向后兼容）" --> PARSE
     IO -.->|无变化| LEX
@@ -292,11 +472,11 @@ graph TB
 | ② 底层字符 I/O | 否 | 这一层完全不知道"表头"这个概念，天然不受影响。 |
 | ③ CSV 词法切分 | 否 | `Lexer`/`Token` 只负责切词，不关心列名语义——即使是 core 子域，也并非每个新业务需求都会牵动到它。 |
 | ④ 记录解析与按名访问 | **是（改动集中在此）** | `createHeaders()` 正是"headerMap 已经建好、但还没返回给构造函数调用方"的唯一时间点——新增的"缺列即报错"逻辑在语义上和它旁边已有的"重复列名即报错""空列名即报错"逻辑是同一类业务规则。 |
-| ⑤ 输出打印 | 否（留有开放问题，见 2.3.5） | 需求本身描述的是"解析"场景，并非"生成"场景。 |
+| ⑤ 输出打印 | 否（留有开放问题，见 2.4.5） | 需求本身描述的是"解析"场景，并非"生成"场景。 |
 
 **关键结论**：这次需求虽然名字叫"`CSVFormat.Builder` 加一个方法"，听起来像是子域①的改动，但**真正有业务规则含量的改动其实发生在子域④**——子域①只是新增了一个"运书单"（配置项），子域④才是真正"验货"的地方。不要只看 API 挂在哪个类上，要看校验逻辑该放在哪个子域。
 
-### 2.3.3 需要改动哪些类
+### 2.4.3 需要改动哪些类
 
 | 类 | 子域 | 是否改动 | 具体改动 | 性质 |
 | --- | --- | --- | --- | --- |
@@ -307,11 +487,11 @@ graph TB
 | `CSVRecord` | ④ | ❌ 不改 | `get(String)` 逻辑不用动——required 列本来就保证存在于 `headerMap` | 不变 |
 | `Lexer` / `Token` | ③ | ❌ 不改 | 不知道"表头"这个概念 | 不变 |
 | `ExtendedBufferedReader` | ② | ❌ 不改 | 同上，更底层 | 不变 |
-| `CSVPrinter` | ⑤ | ❌ 不改（见 2.3.5） | 需求范围是"解析"，并非"写出" | 不变 |
+| `CSVPrinter` | ⑤ | ❌ 不改（见 2.4.5） | 需求范围是"解析"，并非"写出" | 不变 |
 
-### 2.3.4 子域接口变化
+### 2.4.4 子域接口变化
 
-和 2.2.5 一致的澄清：commons-csv 的子域①④本质上在同一个 bounded context、同一个团队里，下面这些箭头，字面意义上称不上"跨团队整合模式调整"，充其量只是借用 DDD Ch.4 的词汇，来描述"子域间调用契约"发生了什么变化：
+和 2.3.5 一致的澄清：commons-csv 的子域①④本质上在同一个 bounded context、同一个团队里，下面这些箭头，字面意义上称不上"跨团队整合模式调整"，充其量只是借用 DDD Ch.4 的词汇，来描述"子域间调用契约"发生了什么变化：
 
 - **子域①（supplier）→ 子域④（customer）**：子域①的 published language 新增了一个**可选**属性 `requiredHeaders`（默认不启用）。这是教科书式的**向后兼容的 open-host-service 式演进**——老的调用方完全不受影响，因为它们消费的字段集合没有减少，只是多了一个它们不关心的新字段。
 - **子域④对外（面向库的最终使用者）**：`CSVParser` 的构造/`parse(...)` 系列工厂方法的"失败模式集合"扩大了一项——这是需要写进 Javadoc、写进 CHANGELOG 的契约变化，即使方法签名一字未改。**接口契约不只是方法签名，还包括"这个方法可能因为什么原因失败"**，这是本次分析最值得记住的一条经验。
@@ -345,7 +525,7 @@ sequenceDiagram
 
 这张序列图直观地展示了需求里"必须在读第一条记录之前抛出"这句话——因为 `createHeaders()` 是在 `CSVParser` 的构造函数里被**同步**调用的，调用方要拿到 `CSVParser` 实例本身就必须等这一步执行完。只要新校验插在 `createHeaders()` 返回之前，"先于第一条记录报错"这个约束就自动满足，不需要额外设计任何"预读一行再回退"之类的机制。
 
-### 2.3.5 开放设计问题
+### 2.4.5 开放设计问题
 
 下面这些问题，分析阶段故意不给"标准答案"——它们会在第三章用决策表的方法逐一裁决：
 
@@ -364,14 +544,14 @@ sequenceDiagram
 
 <a id="ch2-hands-on"></a>
 
-## 2.4 动手练习提示词
+## 2.5 动手练习提示词
 
-为方便动手实操，本节提供**两份先后发给 Agent 的提示词**。第一份是"热身提示词"：在正式做 DDD 分析之前，先让 Agent 实地读一遍源码、动手写一批 JUnit 5 测试并跑通，建立对 `commons-csv` 现有行为的具体手感，而不是直接从抽象的"子域"概念入手。第二份是本章 2.1～2.3 节"识别子域"和"分析新需求影响"相应的提示词（合并成一份完整提示词，一次发给 Agent 后同时获得两份文档）。两份提示词都会先带你的 Agent 做一次"假设体检"，再按"追问"的方式和你对齐诉求，最后才真正动手。这正是全书反复强调的"假设体检+追问"工作习惯，在提示词层面的完整落地。建议你按顺序完整走一遍，而并不只看方法论讲解。
+为方便动手实操，本节提供**两份先后发给 Agent 的提示词**。第一份是"热身提示词"：在正式做 DDD 分析之前，先让 Agent 实地读一遍源码、动手写一批 JUnit 5 测试并跑通，建立对 `commons-csv` 现有行为的具体手感，而并非直接从抽象的"子域"概念入手。第二份是本章 2.2～2.4 节"识别子域"和"分析新需求影响"相应的提示词（合并成一份完整提示词，一次发给 Agent 后同时获得两份文档）。两份提示词都会先带你的 Agent 做一次"假设体检"，再按"追问"的方式和你对齐诉求，最后才真正动手。这正是全书反复强调的"假设体检+追问"工作习惯，在提示词层面的完整落地。建议你按顺序完整走一遍，而并不只看方法论讲解。
 
 使用前请注意：
 
 - 两份提示词**各自独立使用、各自完整**——第二份并不假设你和 Agent 的对话还记得第一份的内容（你完全可以换一个新会话、甚至换一个 Agent 来跑第二份），所以第二份提示词里仍然带着完整的需求原文和 DDD 摘要附录，并不只是"见上一份提示词"这种引用式写法。第二份提示词原本要求 Agent 自己设计一遍"用来验证子域边界的端到端场景"，现在改成直接引用第一份提示词产出的场景清单文件——所以**请先完整跑完第一份热身提示词，拿到场景清单文件之后，再跑第二份**。
-- 两份提示词都要求 Agent **自己读源码、自己判断**，不会把本章 2.2/2.3 节的具体结论告诉它——这是故意的：先让你的 Agent 重新走一遍分析过程，再拿它的产出和本章内容对比，这样才有真实体验的效果。建议先完整跑完两份提示词、拿到全部产出之后，再回头翻 2.2/2.3 节对照。
+- 两份提示词都要求 Agent **自己读源码、自己判断**，不会把本章 2.3/2.4 节的具体结论告诉它——这是故意的：先让你的 Agent 重新走一遍分析过程，再拿它的产出和本章内容对比，这样才有真实体验的效果。建议先完整跑完两份提示词、拿到全部产出之后，再回头翻 2.2/2.3 节对照。
 
 提示词里有几处用尖括号标记的占位符，需要你替换成自己机器上的实际信息：
 
@@ -414,7 +594,7 @@ sequenceDiagram
 1.1 列出我下面要求里没有明说、但你已默认成立的假设（逐条编号，形如：A1、A2、A3……）；
 1.2 列出你还缺哪些关键信息，并说明每条信息会如何改变你的方案（逐条编号，形如：M1、M2、M3……）；
 1.3 指出人们处理这类问题时最常犯的一个错误；
-1.4 只提一个最关键的问题 —— 这个问题要能帮你搞清我的真实目标和具体处境，而不是最后给我一份谁都能套用的通用建议。这个问题的格式如下：
+1.4 只提一个最关键的问题 —— 这个问题要能帮你搞清我的真实目标和具体处境，而并非最后给我一份谁都能套用的通用建议。这个问题的格式如下：
 
 ```
 ❓ **Q0** - **<问题标题>**: <问题正文，可能包含多个段落及选项>
@@ -453,7 +633,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 
 ## 4. 我的诉求
 
-你是一名资深 Java 测试工程师，熟悉 JUnit 5，也熟悉用单步调试理解陌生代码库的方法。在我正式开始用 DDD strategic design 分析 `commons-csv` 这个陌生代码库之前，我想先做一次"理解现有代码库"的热身：实地读一遍源码、动手写一批测试并跑通，建立对这个库现有行为的具体手感，而不是一上来就谈抽象的"子域"概念。
+你是一名资深 Java 测试工程师，熟悉 JUnit 5，也熟悉用单步调试理解陌生代码库的方法。在我正式开始用 DDD strategic design 分析 `commons-csv` 这个陌生代码库之前，我想先做一次"理解现有代码库"的热身：实地读一遍源码、动手写一批测试并跑通，建立对这个库现有行为的具体手感，而并非一上来就谈抽象的"子域"概念。
 
 ### 背景
 
@@ -508,7 +688,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 
 ## 附录：DDD Strategic Design 参考摘要
 
-以下内容是《Learning Domain-Driven Design》（Vlad Khononov 著）第 1–4 章要点的概括整理，帮助你理解"为什么要先弄清楚表头相关的现有行为，而不是其他代码"——你暂时不需要用它做子域判定，只需要理解"核心子域的业务规则，往往就是最值得优先用测试和单步调试搞清楚的那部分代码"这个背景。
+以下内容是《Learning Domain-Driven Design》（Vlad Khononov 著）第 1–4 章要点的概括整理，帮助你理解"为什么要先弄清楚表头相关的现有行为，而并非其他代码"——你暂时不需要用它做子域判定，只需要理解"核心子域的业务规则，往往就是最值得优先用测试和单步调试搞清楚的那部分代码"这个背景。
 
 ### 第 1 章《Analyzing Business Domains》要点
 
@@ -526,7 +706,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 
 - **重要提醒**：核心子域不一定是"技术性"的（比如可能是珠宝设计这种和代码无关的事）；反过来，判断"软件相关的核心子域"时，要看**要实现的业务逻辑复杂度**——是像数据录入/CRUD 一样简单，还是需要实现复杂算法/被复杂业务规则和不变式编排的流程？前者是支撑子域的信号，后者才是核心子域的信号。**代码量大小并非判断标准**，业务逻辑的复杂度才是。
 - **如何找子域边界**：从公司部门这种粗粒度单元开始，但往下细挖（distill），直到找到"一组围绕同一批数据、同一批参与者、彼此紧密关联的用例集合"——这就是子域的精确边界（"subdomains as coherent use cases"）。核心子域要尽量挖得精细（因为它最重要、最该聚焦投入）；支撑/通用子域如果继续往下挖不能带来新的设计决策信息，就可以停止。
-- **域专家（domain experts）**：对业务领域了如指掌的人，通常是提出需求的人或软件的最终用户，不是分析师，也不是工程师。
+- **域专家（domain experts）**：对业务领域了如指掌的人，通常是提出需求的人或软件的最终用户，既非分析师，也非工程师。
 
 ### 第 2 章《Discovering Domain Knowledge》要点
 
@@ -774,7 +954,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 
 - **重要提醒**：核心子域不一定是"技术性"的（比如可能是珠宝设计这种和代码无关的事）；反过来，判断"软件相关的核心子域"时，要看**要实现的业务逻辑复杂度**——是像数据录入/CRUD 一样简单，还是需要实现复杂算法/被复杂业务规则和不变式编排的流程？前者是支撑子域的信号，后者才是核心子域的信号。**代码量大小并非判断标准**，业务逻辑的复杂度才是。
 - **如何找子域边界**：从公司部门这种粗粒度单元开始，但往下细挖（distill），直到找到"一组围绕同一批数据、同一批参与者、彼此紧密关联的用例集合"——这就是子域的精确边界（"subdomains as coherent use cases"）。核心子域要尽量挖得精细（因为它最重要、最该聚焦投入）；支撑/通用子域如果继续往下挖不能带来新的设计决策信息，就可以停止。
-- **域专家（domain experts）**：对业务领域了如指掌的人，通常是提出需求的人或软件的最终用户，不是分析师，也不是工程师。
+- **域专家（domain experts）**：对业务领域了如指掌的人，通常是提出需求的人或软件的最终用户，既非分析师，也非工程师。
 
 ### 第 2 章《Discovering Domain Knowledge》要点
 
@@ -807,7 +987,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 
 </details>
 
-跑完整个流程后，把你的 Agent 产出的两份文档，和本章 2.2、2.3 节逐节对比——尤其关注 Round 0 阶段它对你的诉求提出了什么追问、有没有把"代码行数多"误判成"业务逻辑复杂"，以及"开放设计问题"这一节是否漏掉了某个需求原文没写清楚、但实际核查代码后才会发现的交互点（比如 2.3.5 第 5 条，很多人直接假设两种表头模式行为一致，却懒得去代码里确认）。下一章会把这些开放问题逐一裁决，并用决策表的方法推导出完整的验收测试用例。
+跑完整个流程后，把你的 Agent 产出的两份文档，和本章 2.3、2.4 节逐节对比——尤其关注 Round 0 阶段它对你的诉求提出了什么追问、有没有把"代码行数多"误判成"业务逻辑复杂"，以及"开放设计问题"这一节是否漏掉了某个需求原文没写清楚、但实际核查代码后才会发现的交互点（比如 2.4.5 第 5 条，很多人直接假设两种表头模式行为一致，却懒得去代码里确认）。下一章会把这些开放问题逐一裁决，并用决策表的方法推导出完整的验收测试用例。
 
 ---
 
