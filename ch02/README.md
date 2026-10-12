@@ -427,6 +427,9 @@ graph TB
 
 ## 2.4 新需求实现的影响分析
 
+> [!IMPORTANT]
+> 在让 Agent 基于 commons-csv 当前的子域划分和调用契约，进行 `requiredHeaders` 新增字段对各子域的影响分析时，只列开放问题，无须为每个问题提供候选方案与权衡，因为这是下一章 ADR 的任务。
+
 有了上面这张子域地图，现在可以正式分析 `required headers` 需求原文：
 
 > 我在维护 Apache Commons CSV。我们对账时，上游 CSV 应当包含若干固定列。我想给 `CSVFormat.Builder` 加一个 `setRequiredHeaders(String...)`：解析时一旦发现表头缺少这些列，就在读第一条记录之前抛出一个清楚说明缺了哪些列的错误，而不用等业务代码调用 `record.get("currency")` 时才报 `Mapping for currency not found`。
