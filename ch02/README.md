@@ -249,303 +249,63 @@ strategic design 原本是为公司和团队设计的分析工具，用在一个
 ## 2.3 识别核心、支撑与通用子域
 
 > [!NOTE]
-> 从这里到本章"动手练习提示词"之间所展示的内容，就是作者在添加新功能之前“理解代码所承载的复杂业务逻辑”时与 Claude Code 搭配 Sonnet 5 用"假设体检 + 追问"提示词共创出来的结果。你可以先快速浏览，然后复制本章后半部分的[动手练习提示词](#ch2-hands-on)给你的 Agent ，自己动手跑一遍，再回来和本章上述所展示的内容对比复盘，看看自己的产出有什么差异、这些差异是否合理。
+> 从这里到本章"动手练习提示词"之间所展示的内容，就是作者在添加新功能之前“理解代码所承载的复杂业务逻辑”时与 OpenCode V2 搭配 DeepSeek V4.1 Flash 用"假设体检 + 追问"提示词共创出来的过程与产出要点（原产出内容较长，你应该没有耐心读完，所以这里只展示精华）。你可以先快速浏览，然后复制本章后半部分的[动手练习提示词](#ch2-hands-on)给你的 Agent ，自己动手跑一遍，再回来和本章上述所展示的内容对比复盘，看看自己的产出有什么差异、这些差异是否合理。
 
 > [!IMPORTANT]
 > 上述本章所展示的内容，都经过作者本人验证。由于大模型的不确定性，你把本章末尾的"动手练习提示词"发给自己常用的 Agent 和大模型组合后，会看到不完全相同的产出——这是很正常的现象。所以上述展示的内容，仅供你参考，而并非唯一答案。条条大路通罗马，解决问题的答案会有很多种。只要你理解了这份经过评审的参考结果背后的底层逻辑，再带着这份理解去评判你的 Agent 产出是否做到了"让 Agent 一次生成可信代码"，就已经能在亲身实践中有所收获。
 
-在正式动手拆分 `commons-csv` 之前，先把三个分类标准说清楚：**核心子域**（core subdomain）指的是这个代码库"赖以立身"的那部分业务规则——它复杂、容易出错、且没有现成方案可以照搬，往往也是新需求真正要落脚的地方；**支撑子域**（supporting subdomain）指的是业务逻辑简单、更像是"数据录入/配置项"性质的部分——没有太多算法含量，但库的运转离不开它；**通用子域**（generic subdomain）指的是任何项目都会用同样方式解决的通用问题（比如字符读取、日志），业界早有成熟方案，不需要自己重新发明。
+### 过程：Agent 问了什么、我怎么答、哪里猜错了
 
-把这三类标签贴到一个陌生代码库上,能带来两个立竿见影的好处：一是帮你把有限的阅读精力花在刀刃上——核心子域值得逐行细读、搞清楚每条分支的业务含义，支撑和通用子域往往扫一眼接口签名就够了，不需要通读实现；二是帮你在评估一个新需求的改动范围时，快速判断"这个改动会不会牵动真正复杂的业务规则"，而不被"改动挂在哪个类的 API 上"这个表面现象带偏——2.3.3 节会用 `commons-csv` 的真实判定结果，具体示范这套标签怎么用。
+热身提示词一发出去，Agent 先做了一次环境核查（在工作目录里 grep 确认 `setRequiredHeaders` 确实不存在、JDK/Maven 版本、`pom.xml` 的编译级别），然后只问了我一个最关键的问题：**这次热身到底是"为后续 TDD 铺路"，还是"为 DDD 分析积累业务手感"，还是"纯粹自己探险"**——因为这三种用途会让它选哪些场景、写多细的测试得出相反的结论。我选了"铺路为主、手感为辅"。
 
-### 2.3.1 把代码库看作业务域
+前沿打开后，Agent 一次性抛出 5 个问题：测试覆盖多深（它建议覆盖 `DuplicateHeaderMode` 三种取值和大小写/缺名容忍这些"默认值差异"，而并非只覆盖需求原文点名的 4 类场景）、要不要专门写一个"固化现状失败模式"的特征测试（断言 `record.get("currency")` 今天会怎么报错，作为后续 TDD 的红色基线）、调试指南写多细、"踩坑记录"放哪、用哪个代码库基线。我基本都同意了它的建议，但纠正了两处它的默认假设：它一开始假设用 `git worktree` 克隆代码库以免污染源仓库，我要求改成普通 `git clone`；它还假设测试类"英文命名+中文注释"，我要求全部按 Apache 项目惯例走（英文命名+英文注释）。
 
-把 `commons-csv` 当作一个业务域来看，需要先做一次类比映射——这是一次刻意的方法论改造，并非教科书原文：
+子域分析提示词的 Round 0 同样只问了一个问题：这两份文档到底是"真要拿去给 commons-csv 提 PR"，还是"培训教学用的示范文档"，还是"我自己的学习笔记"——这个答案决定了子域判断该多精确、该不该为了教学把推理过程写透。我选了"教学为主、落地为辅"，于是 Agent 承诺"每条判定既写推理过程，又对齐真实可执行的类和方法"。接下来三轮一共问了 13 个编号问题，典型的像：读/写要不要拆成两个子域（我同意拆）、`CSVFormat` 这一个类要不要拆成"格式配置"和"格式规则与不变式"两个子域（我同意拆，因为新需求恰好落在"规则"这条线上）、要不要允许一次性、不入库的实跑代码去确证行为（我同意，因为光读 3369 行的 `CSVFormat` 源码很容易猜错分支）。
 
-| DDD 原始概念 | 在 commons-csv 上的类比 |
-| --- | --- |
-| 业务域（business domain） | "正确、健壮、可定制地读写 CSV 文本"这件事本身 |
-| 核心子域的"竞争优势" | 能不能把别人不敢碰、容易出 bug 的脏活累活（怪异引号、转义、EOF、各种方言）做对、做稳 |
-| 子域的"复杂度" | 业务规则/边界条件的复杂度，而并非代码行数（`CSVFormat.java` 有 3369 行，但大部分是数据项和文档，逻辑并不复杂——这是"复杂度要看业务逻辑而非体量"的一个活生生的例子）|
-| 子域的"波动性" | 这部分代码历史上改动、修 bug 的频率 |
-| "域专家" | RFC 4180 规范、各数据库/工具（Excel、MySQL、PostgreSQL、MongoDB、Informix）自己的 CSV 方言约定，以及 Apache Commons 维护者积累的边界条件知识 |
+过程中出现了一次 Agent 自己纠正自己的插曲：它在表述 Q2 时把 `createHeaders()` 说成是写在 `CSVFormat` 里的，这其实是错的——它后来又主动 grep 复核了一遍源码，发现 `createHeaders()` 其实是 `CSVParser` 的私有方法，构建期校验在 `CSVFormat.validate()`，解析期校验在 `CSVParser.createHeaders()`，两者本来就分散在两个类里。它没有悄悄改掉前面的问题重新问一遍，而是在后续回复里直接列出"一处事实更正"，并指出这正好是 IMPACT_ANALYSIS 要写的一条关键事实。这件事给我的启发是：就算是 Agent 自己提出的技术判断，也要靠它自己或我去用 `grep`/实跑代码核验一遍，而并非读一遍源码就定论——这恰恰是本章方法论要解决的问题。
 
-这个类比映射本身就是后面所有 core/generic/supporting 判断的起点——先承认"这是一次类比，并非字面意义上的 DDD"，后续的分析才站得住脚。
+### 产出：6 个子域、哪个核心哪个支撑、靠什么证据分出来的
 
-### 2.3.2 用来验证子域边界的端到端测试场景
+问题前沿清空后，Agent 产出了文档 SUBDOMAINS，把 commons-csv 这 12 个生产类收敛成 6 个子域：①格式规则与不变式（`CSVFormat` 的规则部分 + `QuoteMode` + `DuplicateHeaderMode`，判定 **Core**）、②记录读入与解析（`CSVParser`/`Lexer`/`Token`/`CSVRecord`，判定 **Core**）、③格式配置与预定义方言（`CSVFormat` 的配置部分 + `Predefined`，**Supporting**）、④记录写出与生成（`CSVPrinter`，**Supporting**）、⑤字符流缓冲与字节跟踪（`ExtendedBufferedReader`，**Generic**）、⑥基础设施与错误契约（`Constants`/`CSVException`/`package-info`，**Generic**）。每一条判定都按"竞争优势类比／复杂度／波动性／能否外包替代"四个维度写了依据，波动性这一项并非凭印象，而是真的跑了 `git log --oneline` 数出 `CSVFormat.java` 447 次提交、`CSVParser.java` 285 次、`CSVException.java` 只有 2 次——这组数字直接支撑了"规则和解析是核心、异常基类是通用件"的判断。文档里还特意留了一节"⚠️ 分歧/存疑"，老实写出"记录写出也可以被看作核心子域"这种反方观点，而并非把所有争议都抹平成一个确定结论。
 
-子域边界应该对应一组内聚的用例集合，而并非凭直觉按文件名硬划。下面是针对 CSV 文件处理的典型端到端场景，用来交叉验证代码依赖关系得出的子域划分是否"讲得通"：
+这份文档还解释了一个我一开始也会犯的错：人们最容易把"技术分层"误当成"子域边界"，于是把代码最长、最底层的 `CSVFormat`/`Lexer` 一起封成"核心"，因为它们"最难、最长"；但按子域边界的标准，字符缓冲和词法切分其实是换哪个 CSV 库都要做的通用活，真正的核心是"识别一种 CSV 方言、定义合法格式的业务规则"。
 
-- **S1** 解析一个带表头的 CSV 文件，按列名读取每条记录（典型的对账/数据导入场景）。
-- **S2** 解析一个不带表头的 CSV 文件，按列序号读取。
-- **S3** 解析带有怪异语法的 CSV（字段内嵌引号、转义字符、注释行、空行、字段内带分隔符）——健壮性场景。
-- **S4** 解析 Excel 导出的 CSV（locale 相关分隔符、宽松 EOF、尾部脏数据）。
-- **S5** 按某种预定义方言把内存数据写成 CSV 文本。
-- **S6** 以流式方式逐条处理一个很大的 CSV 文件，不一次性加载进内存。
-- **S7** 解析时发现表头有重复列名或空列名，按配置的策略放行或报错。
+子域分析引用了热身阶段真实产出的测试代码：`kata` 包下新增的 3 个 JUnit 5 特征测试类——`HeaderLookupTest`、`HeaderResolutionTest`、`HeaderValidationTest`，共 18 个 `@Test`，435 行，已经合并进公开仓库的提交 [`7da9dc74`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug/commit/7da9dc74ef9a051de87aa00b229852e2aa0f0ba9)。这些测试只验证 commons-csv **今天已有**的行为，故意不实现 `setRequiredHeaders`——留给后面章节做 TDD。
 
-本章要新增的 `required headers` 需求——"解析时发现表头缺少约定好的必需列，必须在读第一条记录前就报错"——正是第 8 个场景，留给 2.3 节专门分析。
+### 可信怎么实现的
 
-这 7 个场景分别落在后面识别出的子域上：S1/S2/S6/S7 落在"记录解析与按名访问"；S3/S4 横跨"词法切分"与"记录解析"；S5 落在"输出打印"；S1～S7 全部都要先经过"格式定义"子域来描述方言。子域边界与真实使用场景对齐，而非凭空按文件名分的——这是验证子域划分是否可靠的关键一步，很多人跳过这一步直接凭直觉分类，容易把边界划错。
+子域判定能站得住，并非因为 Agent "读起来觉得合理"，而是靠三类真实证据：（1）真的通读了全部 12 个生产 `.java` 文件，而不只看类名猜职责；（2）凡是"波动性""默认值"这类可以实测的结论，都真的跑了 `git log` 或写了一次性不入库的验证代码去确证，读不出证据的地方会明确标注"证据不足，推测如下"；（3）文档里的两张 Mermaid 依赖图，Agent 用 `@mermaid-js/mermaid-cli` 真的渲染了一遍，过程中还发现并修了 2 处转义引号导致的语法错误——这意味着图并非"看起来像能画出来"，而是真的渲染通过的。
 
-### 2.3.3 识别核心、支撑与通用子域
+热身阶段测试代码的可信度，则是靠"真的跑 `mvn test`"兑现的：18 个新测试第一次跑，有 3 个直接断言失败——比如以为表头被消费后数据记录编号该从 2 开始，实测仍是 1；以为允许缺名列时空列名会被跳过，实测它照样被写进了映射（size 是 2 并非 1）。这些"我以为会这样、实测却打脸"的坑，被原样记录进调试指南的"实测踩坑记录"一节，而并非悄悄把断言改对了就当没发生过。
 
-commons-csv 的 package 结构是扁平的单一 package（`org.apache.commons.csv`），所以下面的子域边界是在**类簇/职责簇**粒度上划的，并非 package 粒度。
+### 是否一把过
 
-#### 子域 ①：格式定义（Format Definition / CSV 方言配置）
-
-- **包含的类**：`CSVFormat`（含内部类 `Builder`、内部枚举 `Predefined`）、`QuoteMode`、`DuplicateHeaderMode`、`Constants`
-- **职责**：描述"一份 CSV 长什么样"——分隔符、引号、转义符、注释符、表头、空值字符串、重复表头策略、引号策略等约 25 项配置；同时内置了 11 种预定义方言（DEFAULT / EXCEL / RFC4180 / MYSQL / ORACLE / POSTGRESQL_CSV / POSTGRESQL_TEXT / MONGODB_CSV / MONGODB_TSV / INFORMIX_UNLOAD / INFORMIX_UNLOAD_CSV / TDF）。它是一个**不可变值对象 + 可变 Builder + 工厂方法**的组合。
-- **对外接口（其他子域消费的部分）**：
-  - `CSVFormat` 的全部 `getXxx()` / `isXxxSet()` getter（只读配置快照）
-  - `CSVFormat.parse(Reader)` → 构造一个 `CSVParser`（工厂方法）
-  - `CSVFormat.print(...)` / `printer()` → 构造一个 `CSVPrinter`（工厂方法）
-  - `CSVFormat.Builder.setXxx(...)` 全套流式设置方法 + `get()`/`build()`
-  - `CSVFormat.validate()`（私有，仅在构造时自检：分隔符/引号/转义符/注释符是否冲突，表头数组内部是否有重复/空名）
-- **内部依赖**：无——不依赖本仓库内任何其他子域的类（`QuoteMode`、`DuplicateHeaderMode`、`Constants` 本身也是叶子依赖）。
-
-#### 子域 ②：底层字符 I/O（Character I/O）
-
-- **包含的类**：`ExtendedBufferedReader`
-- **职责**：在 Apache Commons IO 的 `UnsynchronizedBufferedReader` 基础上，加上单字符前瞻（peek）、BOM 剥离、行号/字符位置/字节位置跟踪。纯粹的字符读取基础设施，完全不知道"CSV"是什么。
-- **对外接口**：标准 `Reader` 风格方法（`read()`、`read(char[], int, int)`、`readLine()`、`mark()/reset()`、`close()`）外加 `peek(char[])`。
-- **内部依赖**：无——只包裹 `java.io.Reader`，不依赖仓库内其他类。被子域 ③（词法切分）单向依赖。
-
-#### 子域 ③：CSV 词法切分（Lexing / Tokenization）
-
-- **包含的类**：`Lexer`（package-private）、`Token`（package-private）
-- **职责**：按照 `CSVFormat` 给定的分隔符/引号/转义符/注释符规则，把字符流切分成一个个 `Token`（TOKEN / EORECORD / EOF / COMMENT）。这是真正"读懂 CSV 语法"的地方——怪异引号、转义、跨行字段、注释识别全部发生在这一层。
-- **对外接口**：
-  - 构造函数 `Lexer(CSVFormat format, ExtendedBufferedReader reader)`
-  - `Token nextToken(Token token)`（核心方法，调用方传入可复用的 `Token` 对象，由 `Lexer` 原地填充）
-  - `getCurrentLineNumber()` / `getCharacterPosition()` / `close()`
-- **内部依赖**：`Lexer → CSVFormat`（构造时只读取配置原始值，不持有引用）、`Lexer → ExtendedBufferedReader`（全部字符 I/O 经它）、`Lexer → Token`（填充）、`Lexer → CSVException`（遇到畸形引号/转义时抛出）。
-
-#### 子域 ④：记录解析与按名访问（Record Parsing & Header Mapping）
-
-- **包含的类**：`CSVParser`（含内部 `Builder`、内部静态类 `Headers`）、`CSVRecord`、`CSVException`
-- **职责**：驱动 `Lexer` 拉取 token，把它们组装成一行行 `CSVRecord`；同时**构建并持有"列名 → 列序号"的映射表**（`headerMap`），让使用者可以用 `record.get("currency")` 这种按名访问的方式读数据，而不必关心列的物理顺序。这是整个库里**业务规则最密集**的地方：重复列名怎么处理、空列名怎么处理、大小写是否敏感、是否要跳过表头行，全部在这里判定。
-- **对外接口（面向库的最终使用者，即训练场景里的"学员要改的代码"）**：
-  - `CSVParser` 的 6 个静态 `parse(...)` 工厂方法（File / InputStream / Path / Reader / String / URL）
-  - `CSVParser.Builder`（`setFormat()` 等）
-  - `getHeaderMap()` / `getHeaderNames()` / `getRecords()` / `iterator()` / `stream()` / `close()`
-  - `CSVRecord.get(int|String|Enum)`、`isMapped(String)`、`toMap()`、`toList()` 等
-- **内部依赖**：`CSVParser → CSVFormat`（持有一份只读拷贝）、`CSVParser → Lexer`（驱动它）、`CSVParser → ExtendedBufferedReader`（构造并转交给 Lexer）、`CSVParser → Token`（复用实例）、`CSVParser → CSVRecord`（逐行构造）、`CSVParser → DuplicateHeaderMode`（分支判断）、`CSVParser → CSVException`（解析序列不合法时抛出）；`CSVRecord → CSVParser`（反向持有，用于 `get(String)` 时回查 `parser.getHeaderMapRaw()`）。
-
-#### 子域 ⑤：输出打印（Output Printing）
-
-- **包含的类**：`CSVPrinter`
-- **职责**：把内存里的数据按 `CSVFormat` 的引号/分隔符/转义规则写成 CSV 文本——是子域④的逆操作，但逻辑上简单得多（不需要处理"畸形输入"这种不确定性，只需要机械地套用格式规则）。
-- **对外接口**：构造函数 `CSVPrinter(Appendable, CSVFormat)`；`printRecord(...)`、`printRecords(...)`、`printComment(String)`、`printHeaders(ResultSet)`、`flush()`、`close()`。
-- **内部依赖**：`CSVPrinter → CSVFormat`（唯一依赖，所有格式化决策都委托给它）。不依赖子域②③④的任何类。
-
-### 2.3.4 可视化子域内部类之间的依赖关系
-
-```mermaid
-graph LR
-    subgraph FMT["① 格式定义 Format Definition"]
-        CSVFormat
-        Builder1["CSVFormat.Builder"]
-        QuoteMode
-        DuplicateHeaderMode
-        Constants
-    end
-    subgraph IO["② 底层字符 I/O"]
-        ExtendedBufferedReader
-    end
-    subgraph LEX["③ CSV 词法切分 Lexing"]
-        Lexer
-        Token
-    end
-    subgraph PARSE["④ 记录解析与按名访问"]
-        CSVParser
-        CSVRecord
-        CSVException
-    end
-    subgraph PRINT["⑤ 输出打印"]
-        CSVPrinter
-    end
-
-    CSVFormat --> Builder1
-    CSVFormat -. "构造(工厂方法)" .-> CSVParser
-    CSVFormat -. "构造(工厂方法)" .-> CSVPrinter
-    CSVParser --> CSVFormat
-    CSVParser --> Lexer
-    CSVParser --> ExtendedBufferedReader
-    CSVParser --> Token
-    CSVParser --> CSVRecord
-    CSVParser --> CSVException
-    CSVRecord --> CSVParser
-    Lexer --> CSVFormat
-    Lexer --> ExtendedBufferedReader
-    Lexer --> Token
-    Lexer --> CSVException
-    CSVPrinter --> CSVFormat
-
-    style FMT fill:#fff3cd,stroke:#b8860b
-    style IO fill:#e0e0e0,stroke:#666
-    style LEX fill:#ffd9d9,stroke:#c0392b
-    style PARSE fill:#ffd9d9,stroke:#c0392b
-    style PRINT fill:#fff3cd,stroke:#b8860b
-```
-
-红色 = 后面判定为 core 的子域；黄色 = supporting；灰色 = generic。虚线箭头表示"作为工厂方法被动构造"，并非结构性耦合——`CSVFormat` 并不持有对 `CSVParser`/`CSVPrinter` 的引用，只是它们的构造入口之一。
-
-### 2.3.5 可视化子域之间的协作关系
-
-```mermaid
-graph TB
-    FMT["① 格式定义<br/>CSVFormat / Builder / QuoteMode /<br/>DuplicateHeaderMode / Constants"]
-    IO["② 底层字符 I/O<br/>ExtendedBufferedReader"]
-    LEX["③ CSV 词法切分<br/>Lexer / Token"]
-    PARSE["④ 记录解析与按名访问<br/>CSVParser / CSVRecord / CSVException"]
-    PRINT["⑤ 输出打印<br/>CSVPrinter"]
-
-    FMT -- "published language：<br/>只读配置快照 + 方言常量" --> LEX
-    FMT -- "published language：<br/>只读配置快照" --> PARSE
-    FMT -- "published language：<br/>只读配置快照" --> PRINT
-    IO -- "字符读取契约：<br/>read/peek/位置跟踪" --> LEX
-    LEX -- "Token 契约：<br/>nextToken(Token)" --> PARSE
-    PARSE -- "库对外 API：<br/>CSVRecord.get(name)" --> USER["调用方代码<br/>（你要改的业务代码）"]
-    PRINT -- "库对外 API：<br/>printRecord(...)" --> USER
-
-    style FMT fill:#fff3cd,stroke:#b8860b
-    style IO fill:#e0e0e0,stroke:#666
-    style LEX fill:#ffd9d9,stroke:#c0392b
-    style PARSE fill:#ffd9d9,stroke:#c0392b
-    style PRINT fill:#fff3cd,stroke:#b8860b
-    style USER fill:#d9e8ff,stroke:#2c5f9e
-```
-
-**重要澄清**：按 Ch.3/Ch.4 的严格定义，"partnership / shared kernel / conformist / anticorruption layer / open-host service" 描述的是**不同团队、不同 bounded context 之间**的整合关系。而 commons-csv 这 5 个子域实际上都生活在**同一个 bounded context**（同一个 Maven 模块、同一个维护团队、同一个发布版本号）里——这是刻意的单体设计。所以上图里的箭头，外人乍看像是团队间的"整合模式"，拆开来看，其实是**子域内部的调用契约**。但为了帮助建立直觉，可以这样类比着记：
-
-- 子域①（格式定义）像是全局的**shared kernel**——④③⑤ 都依赖它的字段形状，一旦改了字段，三个子域都要重新编译/重新验证。
-- 子域④依赖子域②③的方式类似**customer–supplier**里"customer 完全主导，supplier 没有自己的对外契约"——`Lexer`/`ExtendedBufferedReader` 的接口形状完全是为了服务 `CSVParser` 设计的。
-- 子域④/⑤对外（面向库使用者）的 `CSVRecord.get(...)` / `printRecord(...)` 才是真正意义上的**open-host service**：这是 commons-csv 对全世界 Java 项目公开的"published language"，任何改动都要考虑向后兼容。
+并非"一次发出去就什么都对"，但也没有真正的推倒重来。两份提示词加起来走了好几轮"假设体检+追问"（热身прompt 1 个 Round 0 问题 + 5 个编号问题；子域/影响分析提示词 1 个 Round 0 问题 + 13 个编号问题，分 4 轮问完），这些轮次本身就是方法论设计出来的——目的是在动手写文档和代码之前，先把分歧和默认假设都挑出来。真正动手之后，唯一的"返工"是测试断言被实测结果纠正（3 处）和 Agent 自己发现并公开承认的一处事实性错误（`createHeaders()` 的位置），两者都是"发现错了就当场改、写进记录里"，没有出现"文档写完才发现子域分错了，整份重写"这种代价更高的返工。
 
 <a id="ch2-4"></a>
 
 ## 2.4 新需求实现的影响分析
 
-> [!IMPORTANT]
-> 在让 Agent 基于 commons-csv 当前的子域划分和调用契约，进行 `requiredHeaders` 新增字段对各子域的影响分析时，只列开放问题，无须为每个问题提供候选方案与权衡，因为这是下一章 ADR 的任务。
+### 过程：围着"这个需求到底牵动谁"反复确认
 
-有了上面这张子域地图，现在可以正式分析 `required headers` 需求原文：
+影响分析和子域识别是同一份提示词、同一场对话产出的，所以 Round 0 的那个关键问题（教学为主还是落地为主）同样决定了影响分析要写到多细。确定"教学为主、结论对齐真实可执行的类和方法"之后，Agent 没有直接给结论，而是先按提示词要求**实地读代码**回答了"今天表头相关的校验分别发生在哪"：重复表头名校验分两处（`CSVFormat.validate()` 构建期、`CSVParser.createHeaders()` 解析期），都抛 `IllegalArgumentException`；空白/缺失表头名校验只在 `CSVParser.createHeaders()`；按名查找失败则在 `CSVRecord.get(String)`，正是需求原文抱怨的那个"迟报错"的点。
 
-> 我在维护 Apache Commons CSV。我们对账时，上游 CSV 应当包含若干固定列。我想给 `CSVFormat.Builder` 加一个 `setRequiredHeaders(String...)`：解析时一旦发现表头缺少这些列，就在读第一条记录之前抛出一个清楚说明缺了哪些列的错误，而不用等业务代码调用 `record.get("currency")` 时才报 `Mapping for currency not found`。
+真正留给我决策的是最后 3 个问题（子域结构确定表、子域命名用中英双语、分歧怎么呈现），都是在前面 10 个问题定了调之后才能问的，我也都同意了建议。
 
-### 2.4.1 代码现状
+### 产出：一条反直觉的结论、一张改动清单、6 个留白问题
 
-表头相关的校验目前已经发生在三个地方，这是理解"新检查该插在哪"的关键背景：
+IMPACT_ANALYSIS 文档最想讲清楚的一条结论是：**"需求挂在哪个类的 API 上"不等于"业务规则该落在哪个子域"，也不等于"规则真正被强制执行的地方"**。需求字面上说"给 `CSVFormat.Builder` 加一个方法"，第一反应是只改 `CSVFormat`；但真正的业务规则（"必需列必须存在"）属于核心子域①（格式规则与不变式），而规则的强制执行点却必须落在核心子域②（记录读入与解析），因为只有解析期才能拿到自动探测出来的真实表头——这恰好和现状里"重复列名校验分居构建期与解析期两处"是同一个结构。文档据此给出逐类改动清单：`CSVFormat`/`Builder` 新增 `requiredHeaders` 字段和 setter（供②访问）、`CSVParser.createHeaders()` 末尾新增必需列检查、`CSVRecord` 代码不改但其"晚报错"路径会被正常路径绕开；`CSVPrinter`、`Lexer`、`Token`、`ExtendedBufferedReader`、`Constants` 等明确标注"不受影响"。
 
-| 校验内容 | 发生在哪个类/方法 | 时机 | 抛出什么 |
-| --- | --- | --- | --- |
-| 分隔符/引号/转义符/注释符是否互相冲突 | `CSVFormat.validate()`（私有） | `CSVFormat` 对象构造时 | `IllegalArgumentException` |
-| 表头数组自身有没有重复名/空名（字面值） | `CSVFormat.validate()` | `CSVFormat` 对象构造时 | `IllegalArgumentException` |
-| 表头数组解析自输入流后，真实列名有没有重复/空 | `CSVParser.createHeaders()` | `CSVParser` 构造函数内部，在第一条记录能被拿到之前 | `IllegalArgumentException("The header contains a duplicate name...")` 等 |
-| 按列名取值时，该列名是否存在于 `headerMap` | `CSVRecord.get(String)` | 惰性——只有调用方真的执行了 `record.get("currency")` 才触发 | `IllegalArgumentException("Mapping for %s not found, expected one of %s", ...)` |
+文档末尾留了 6 个没有标准答案的开放设计问题：异常类型该复用 `IllegalArgumentException` 还是新建类型、校验要不要同时覆盖"显式表头"和"自动探测表头"两种来源、是否要跟随 `ignoreHeaderCase`、新校验和既有的空列名/重复列名校验谁先谁后报错、没有表头时 `requiredHeaders` 该怎么办、要不要对称处理写方向——每个问题都只写清楚"权衡点是什么"，不给作者自己的倾向，留给读者在第三章用决策表把它们一个个裁决掉。
 
-可以看到：**"缺列"这类问题，今天完全没有专门校验**——`CSVFormat.validate()` 只能校验"声明的表头形状本身"，因为它根本看不到输入数据；真正的缺列问题，只有在业务代码第一次按名取值时才会暴露，且报错信息完全不提"表头出了什么问题"，只说"这个名字找不到"——这正是需求描述里吐槽的体验。
+### 可信怎么实现的
 
-### 2.4.2 需要改动哪些子域
+这份影响分析的可信度，建立在它和子域识别用的是**同一套实测证据**：现状校验的类名、方法名、行号、精确异常消息，全部来自前面"实地读代码+一次性实跑"验证过的事实报告，而并非另起一套凭印象写的说明。文档还特别验证了一致性——新需求的裂缝和"重复列名现状分居两处"的裂缝是同构的，这个类比本身就是一种交叉校验：如果影响分析得出的结论和已经验证过的现状规律自相矛盾，就说明判断错了。
 
-```mermaid
-graph TB
-    FMT["① 格式定义<br/>CSVFormat / Builder<br/><b>🔧 新增 requiredHeaders 字段</b>"]
-    IO["② 底层字符 I/O<br/>✅ 不变"]
-    LEX["③ CSV 词法切分<br/>✅ 不变"]
-    PARSE["④ 记录解析与按名访问<br/>CSVParser / CSVRecord<br/><b>🔧 createHeaders() 新增校验</b>"]
-    PRINT["⑤ 输出打印<br/>✅ 不变（讨论见 2.4.5）"]
+### 是否一把过
 
-    FMT -- "published language 新增一个<br/>可选属性（向后兼容）" --> PARSE
-    IO -.->|无变化| LEX
-    LEX -.->|无变化| PARSE
-    PARSE -- "构造函数新增一种<br/>可能抛出的失败场景" --> USER["调用方代码"]
-    PRINT -.->|无变化| USER
+同样并非零迭代，但没有返工：10 道前置问题问完、3 道收尾问题确认完，文档一次成型，没有出现"结论写完又推翻重写"的情况。唯一一次方向性纠正，就是 2.3 里提到的那次"`createHeaders()` 位置说错了"的自我更正——而这次更正恰好被顺手写成了 IMPACT_ANALYSIS 里"规则分居两处"这条关键事实的佐证，并非被动挨了一下才改，而是检查出来主动讲清楚。
 
-    style FMT fill:#ffb3b3,stroke:#c0392b,stroke-width:3px
-    style PARSE fill:#ffb3b3,stroke:#c0392b,stroke-width:3px
-    style IO fill:#d4f1d4,stroke:#2e7d32
-    style LEX fill:#d4f1d4,stroke:#2e7d32
-    style PRINT fill:#d4f1d4,stroke:#2e7d32
-    style USER fill:#d9e8ff,stroke:#2c5f9e
-```
-
-| 子域 | 本次是否触碰 | 说明 |
-| --- | --- | --- |
-| ① 格式定义 | **是** | 新增 `requiredHeaders` 配置项——典型的"在 supporting 子域里加一个新的数据字段"，没有算法复杂度。 |
-| ② 底层字符 I/O | 否 | 这一层完全不知道"表头"这个概念，天然不受影响。 |
-| ③ CSV 词法切分 | 否 | `Lexer`/`Token` 只负责切词，不关心列名语义——即使是 core 子域，也并非每个新业务需求都会牵动到它。 |
-| ④ 记录解析与按名访问 | **是（改动集中在此）** | `createHeaders()` 正是"headerMap 已经建好、但还没返回给构造函数调用方"的唯一时间点——新增的"缺列即报错"逻辑在语义上和它旁边已有的"重复列名即报错""空列名即报错"逻辑是同一类业务规则。 |
-| ⑤ 输出打印 | 否（留有开放问题，见 2.4.5） | 需求本身描述的是"解析"场景，并非"生成"场景。 |
-
-**关键结论**：这次需求虽然名字叫"`CSVFormat.Builder` 加一个方法"，听起来像是子域①的改动，但**真正有业务规则含量的改动其实发生在子域④**——子域①只是新增了一个"运书单"（配置项），子域④才是真正"验货"的地方。不要只看 API 挂在哪个类上，要看校验逻辑该放在哪个子域。
-
-### 2.4.3 需要改动哪些类
-
-| 类 | 子域 | 是否改动 | 具体改动 | 性质 |
-| --- | --- | --- | --- | --- |
-| `CSVFormat.Builder` | ① | ✅ | 新增字段 `requiredHeaders` + 新方法 `setRequiredHeaders(String...)`（镜像现有 `setHeader(String...)` 的写法） | 纯新增，向后兼容 |
-| `CSVFormat` | ① | ✅ | 新增只读字段 + getter；拷贝构造要带上这个字段；`validate()` 里最多做"数组本身非空元素"之类的形状校验 | 纯新增，向后兼容 |
-| `CSVParser`（`createHeaders()`） | ④ | ✅ | 在 `headerMap` 构建完毕、返回之前，插入"缺失列检测"逻辑 | 新增校验分支，复用已有机制 |
-| `CSVParser`（构造函数/Javadoc） | ④ | ⚠️ 契约变化 | 多了一种可能抛出异常的原因，Javadoc 需要补充说明 | 向后兼容但行为契约扩大了 |
-| `CSVRecord` | ④ | ❌ 不改 | `get(String)` 逻辑不用动——required 列本来就保证存在于 `headerMap` | 不变 |
-| `Lexer` / `Token` | ③ | ❌ 不改 | 不知道"表头"这个概念 | 不变 |
-| `ExtendedBufferedReader` | ② | ❌ 不改 | 同上，更底层 | 不变 |
-| `CSVPrinter` | ⑤ | ❌ 不改（见 2.4.5） | 需求范围是"解析"，并非"写出" | 不变 |
-
-### 2.4.4 子域接口变化
-
-和 2.3.5 一致的澄清：commons-csv 的子域①④本质上在同一个 bounded context、同一个团队里，下面这些箭头，字面意义上称不上"跨团队整合模式调整"，充其量只是借用 DDD Ch.4 的词汇，来描述"子域间调用契约"发生了什么变化：
-
-- **子域①（supplier）→ 子域④（customer）**：子域①的 published language 新增了一个**可选**属性 `requiredHeaders`（默认不启用）。这是教科书式的**向后兼容的 open-host-service 式演进**——老的调用方完全不受影响，因为它们消费的字段集合没有减少，只是多了一个它们不关心的新字段。
-- **子域④对外（面向库的最终使用者）**：`CSVParser` 的构造/`parse(...)` 系列工厂方法的"失败模式集合"扩大了一项——这是需要写进 Javadoc、写进 CHANGELOG 的契约变化，即使方法签名一字未改。**接口契约不只是方法签名，还包括"这个方法可能因为什么原因失败"**，这是本次分析最值得记住的一条经验。
-- **子域②③**：完全在这次变更的影响范围之外。
-
-```mermaid
-sequenceDiagram
-    participant Caller as 调用方代码
-    participant Builder as CSVFormat.Builder<br/>(子域①)
-    participant Format as CSVFormat<br/>(子域①)
-    participant Parser as CSVParser<br/>(子域④)
-    participant Lexer as Lexer<br/>(子域③)
-
-    Caller->>Builder: setHeader().setRequiredHeaders("date","amount","currency")
-    Builder->>Format: get() 构造不可变 CSVFormat
-    Caller->>Parser: CSVFormat.parse(reader)
-    activate Parser
-    Parser->>Lexer: 驱动 nextToken() 读取第一行物理记录
-    Lexer-->>Parser: Token(s) 组成表头行
-    Parser->>Parser: createHeaders()：构建 headerMap
-    Note over Parser: 🆕 新增步骤：<br/>missing = requiredHeaders - headerMap.keys()
-    alt missing 非空
-        Parser-->>Caller: 🆕 抛出异常："Missing required header(s): [currency], header: [date, amount]"
-    else missing 为空
-        Parser-->>Caller: 正常返回 CSVParser 实例
-        Caller->>Parser: 遍历 getRecords() / iterator()
-        Parser-->>Caller: 第一条 CSVRecord
-    end
-    deactivate Parser
-```
-
-这张序列图直观地展示了需求里"必须在读第一条记录之前抛出"这句话——因为 `createHeaders()` 是在 `CSVParser` 的构造函数里被**同步**调用的，调用方要拿到 `CSVParser` 实例本身就必须等这一步执行完。只要新校验插在 `createHeaders()` 返回之前，"先于第一条记录报错"这个约束就自动满足，不需要额外设计任何"预读一行再回退"之类的机制。
-
-### 2.4.5 开放设计问题
-
-下面这些问题，分析阶段故意不给"标准答案"——它们会在第三章用决策表的方法逐一裁决：
-
-1. **异常类型**：复用 `IllegalArgumentException`（和现有重复/空表头错误保持风格一致），还是新增一个专门的异常类型，让调用方可以精确 `catch`？
-2. **大小写敏感性**：`requiredHeaders` 的比较要不要尊重 `ignoreHeaderCase` 配置？
-3. **与 `allowMissingColumnNames` / `DuplicateHeaderMode` 的交互**：如果某一列同时触发"重复列名"和"属于 required 列"，报错顺序和报错内容该怎么组织？
-4. **是否该同时约束 `CSVPrinter`（写路径）**：需求原文只提到"解析"场景，但一个对称的 API 设计者可能会问"写的时候要不要对称校验"。
-5. **`setHeader()` 两种模式的交互**：自动从首行解析表头 vs 手工指定表头，这两种模式下 `requiredHeaders` 的校验时机和校验对象是否完全一致？
-
-| 维度 | 结论 |
-| --- | --- |
-| 牵动的子域 | ①格式定义（新增配置项，无算法复杂度）、④记录解析与按名访问（新增校验逻辑，这是真正的"业务逻辑落点"） |
-| 不受影响的子域 | ②底层字符 I/O、③CSV 词法切分、⑤输出打印 |
-| 子域间接口变化 | ①→④ 的 published language 新增一个可选、向后兼容的属性；④对外的"构造期可能失败的原因集合"扩大 |
-| 对本章的意义 | 这是一个"需求挂在 supporting 子域的 API 上，但真正的业务规则要落在 core 子域里实现"的典型棕地改动案例，可以用来检验自己是否真正建立了子域边界的心智模型，而并非只会"在被要求改的那个类里加代码" |
 
 <a id="ch2-hands-on"></a>
 
