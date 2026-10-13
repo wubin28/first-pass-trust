@@ -24,179 +24,32 @@
 ## 2.1 热身阶段单步调试指南：用现有行为的测试理解 commons-csv
 
 > [!NOTE]
-> 本节内容对应困境二——AI 讲的架构、时序图听起来很有道理，但哪些是真的在代码里发生的，光听转述说不清。在正式用 DDD strategic design 拆子域之前，先亲手单步调试一遍代码库里现有的验收测试，把"听 AI 说"换成"亲眼看代码真的怎么跑"。本节内容配合新增的特征测试类 [`HeaderHandlingWarmupCharacterizationTest`](./src/test/java/org/apache/commons/csv/kata/HeaderHandlingWarmupCharacterizationTest.java)（只须把这个测试文件复制到你克隆下来的 `commons-csv` 仓库里的 `src/test/java/org/apache/commons/csv/kata/` 目录下即可；注意，下面的代码行号都是基于 `commons-csv` 代码库以下版本：`c6ac1bde - 2026-09-29 19:42:01 [test] Bump org.apache.commons:commons-lang3 from 3.20.0 to 3.21.0 - Gary Gregory`），下面每一节对应一个测试方法，给出断点位置、值得观察的变量、以及这条测试和 `required headers` 新需求之间的关系。本节内容由本章 2.5 节"动手练习提示词"中的第一份"热身提示词"产出；你也可以先浏览本节内容，再自己跑一遍那份提示词，对比复盘。
+> 本节内容对应困境二——AI 讲的架构、时序图听起来很有道理，但哪些是真的在代码里发生的，光听转述说不清。在正式用 DDD strategic design 拆子域之前，先亲手单步调试一遍代码库里现有的验收测试，把"听 AI 说"换成"亲眼看代码真的怎么跑"。下面不是 Agent 产出文档的全文，而是我把本章 2.5 节的"热身提示词"发给 OpenCode V2 搭配 DeepSeek V4.1 Flash 之后，真实发生的问答过程、产出清单与可信度验证方式的复盘。建议你先读完这一节，再去跑 2.5 的提示词，跑完回来对照看看你的 Agent 给出的问题和产出有什么不同——我不会在这里重复讲 commons-csv 的内部实现，那是你自己跑提示词时 Agent 会替你读的。
 
-### 2.1.1 开始之前：运行命令
+### 过程：Agent 问了什么，我怎么答的
 
-在代码库根目录（`<COMMONS_CSV_REPO_PATH>`）下执行：
+提示词一发出去，Agent 先做了一轮环境核查（grep 确认 `setRequiredHeaders`/`RequiredHeader` 相关符号全库不存在、确认没有现成的 `kata` 子包、记录 JDK 21/Maven 3.9.16 和 `pom.xml` 里 `source/target=1.8` 的编译级别、确认工作目录是空的），然后只问了 Round 0 的一个问题：**这次热身到底是"为后续 TDD 铺路"、"为 DDD 分析积累业务手感"，还是"纯粹自己探险"**——这三种用途会让它选哪些场景、写多细的测试得出相反的结论。它自己给的默认推荐是"(a) 铺路为主、(b) 手感为辅"，我同意了这个选择方向，但没有照单全收它推荐里夹带的两个具体做法：它建议用 `git worktree` 克隆代码库以免污染源仓库，**我要求改成普通 `git clone`**；它还建议测试类"英文命名 + 中文注释"，**我要求全部按 Apache 项目惯例走（英文命名 + 英文注释）**，中文只留给最终产出的两份 markdown 文档。
 
-```bash
-# 只运行本次新增的热身测试
-mvn test -Dtest=HeaderHandlingWarmupCharacterizationTest
+前沿打开后，Agent 一次性抛出 5 个问题：覆盖深度要到什么程度（它给了"最小集合/中等/穷尽"三档，建议中等——在需求原文点名的场景之外，再覆盖 `DuplicateHeaderMode` 三种取值、大小写不敏感、缺名容忍这些"默认值差异"）、是否要专门写一个"固化现状失败模式"的特征测试（断言 `record.get("currency")` 今天会怎么报错，作为后续 TDD 的红色基线）、调试指南写多细（自用 vs 兼顾未来读者）、"踩坑记录"放在哪个文件、以及克隆基线和改动要不要提交。我基本都同意了它的建议：覆盖深度选中等档、包含失败模式特征测试、调试指南按"自用可跑 + 兼顾未来读者"的标准写、踩坑记录并入调试指南末尾单开一节、新测试只留在工作区不提交。
 
-# 运行全量测试，确认没有破坏任何已有测试
-mvn test
-```
+和这一步并行，Agent 派了一个子代理去实地核查 `CSVFormat`/`CSVParser`/`CSVRecord`/`DuplicateHeaderMode` 的源码，取回精确行号和异常消息原文——这些事实收集不需要我回答，但报告回来后纠正了它自己此前问题里的一处疏漏：原来 Q1 选项里提到的 `getHeaderCount()` 之类的 API 其实根本不存在，它主动把这条从候选观察面里删掉，换成实测确认存在的 `getHeaderNames()`/`getHeaderMap()`/`isMapped(String)` 等。
 
-实测结果：新增测试类共 9 个测试方法，全部通过；加入这批测试后，全量测试从 985 个增加到 **994 个，0 个失败、0 个错误、11 个跳过**（跳过的用例和本次改动无关，是代码库里已有的、本身就被跳过的用例）。
+### 产出：场景清单、调试指南、18 个特征测试
 
-**VSCode 操作提示**：打开 Testing 面板（点击VSCode 左侧侧边栏烧瓶图标）后，先对 `HeaderHandlingWarmupCharacterizationTest` 整体 Run 一次——JUnit 5 的测试实例是运行时才计算出来的，面板需要先跑一次才会展开出 9 个独立的测试方法节点，之后就可以对每个方法单独右键 "Debug Test"。
+问题前沿清空后，Agent 产出了两份文档：
 
-### 2.1.2 整体结构速览
+- **场景清单**（`01-0-3-scenarios.md`）：先列出 35 个宽口径的 CSV 处理场景（S01～S35，覆盖表头来源、表头校验、按名/按下标取值、以及一组本轮有意不覆盖的其它行为），再从中挑出 19 个和"表头/必需列"直接相关的代表性场景并写明理由，最后给出场景与测试方法的对应表。
+- **调试指南**（`01-0-4-debug-guide.md`）：开头给出复制即用的命令，正文按测试类（`HeaderResolutionTest`/`HeaderValidationTest`/`HeaderLookupTest`）逐个测试方法给出断点位置（类名+行号+该行代码）、要观察的变量、以及这个变量为什么能验证对应行为，并专门分析了 `setRequiredHeaders` 未来最合适的插入点——`CSVParser.createHeaders()` 返回之前（`CSVParser.java:682` 之前），因为此时 `headerMap` 已经完整建好，而这段代码又在构造函数（`CSVParser.java:528`）里被同步调用，天然满足"必须在读第一条记录之前报错"的约束。文末附一张行号对照表和一节"实测踩坑记录"。
 
-新增测试文件：`src/test/java/org/apache/commons/csv/kata/HeaderHandlingWarmupCharacterizationTest.java`
+这两份文档背后是真实写出并跑通的测试代码：`kata` 包下新增 3 个 JUnit 5 特征测试类——`HeaderResolutionTest`（6 个方法）、`HeaderValidationTest`（8 个方法）、`HeaderLookupTest`（4 个方法），共 18 个 `@Test`，435 行，已经公开在 [`commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug) 仓库的提交 [`7da9dc74`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug/commit/7da9dc74ef9a051de87aa00b229852e2aa0f0ba9) 里。这些测试只验证 commons-csv **今天已有**的行为，故意不实现 `setRequiredHeaders`——那是留给后面章节做 TDD 的事。
 
-所有测试方法都会间接调用生产代码里的同一个关键方法——`CSVParser.createHeaders()`（`src/main/java/org/apache/commons/csv/CSVParser.java` 第 628～683 行）。这个方法在 `CSVParser` 的构造函数里被**同步**调用（见 `CSVParser.java` 第 528 行：`this.headers = createHeaders();`），这正是"必须在读第一条记录之前报错"这句话能够成立的结构性原因——调用方要拿到 `CSVParser` 实例，就必须等 `createHeaders()` 执行完。
+### 可信怎么实现的
 
-下面每一节对应一个测试方法，给出：断点位置（类名 + 行号 + 该行代码原文）、值得观察的变量、以及这条测试和 `required headers` 新需求之间的关系。
+这批测试和两份文档的可信度不是靠"读起来像专业文档"，而是靠一件可以直接复核的事：**18 个测试第一次跑的时候，有 3 个直接断言失败**——以为表头被消费后数据记录编号该从 2 开始，实测仍是 1；以为允许缺名列时空列名会被跳过，实测它照样被写进了映射（`headerMap` size 是 2 不是 1）；还有一处是关于 `DuplicateHeaderMode` 的"默认值陷阱"——`CSVFormat.DEFAULT`/`EXCEL` 的默认值 `ALLOW_ALL` 并非枚举或字段本身的 Java 默认值，而是 `CSVFormat.Builder.create()` 里显式设置出来的，换一条构造路径（`new Builder()`）就会变成等效于 `DISALLOW`。这些"我以为会这样、实测却不是"的坑，都被原样记录进调试指南的"实测踩坑记录"一节，而不是悄悄把断言改对了就当没发生过。全量 `mvn test` 跑出 **1003 个测试、0 失败、0 错误、11 跳过**，这个数字本身也是可以在你自己的环境里重新跑一遍去验证的。
 
-### 2.1.3 场景 1：无表头 CSV，按下标取值
+### 是否一把过
 
-**测试方法**：`headerlessCsv_accessesFieldsByIndex`（`HeaderHandlingWarmupCharacterizationTest.java` 第 47～62 行）
-
-- **断点**：`CSVParser.java` 第 631 行 `final String[] formatHeader = format.getHeader();`
-- **观察变量**：`formatHeader` —— 单步执行会看到它是 `null`（因为测试用的 `CSVFormat.DEFAULT` 从未调用 `setHeader(...)`）。
-- **为什么看这个变量**：第 632 行 `if (formatHeader != null)` 是整个 `createHeaders()` 方法里唯一的"大分支"——`formatHeader == null` 时，方法直接跳到第 682 行，返回一个 `headerMap` 为 `null` 的 `Headers` 对象，完全不建立任何名字到列号的映射。这就是为什么这条测试只能用 `record.get(0)`、`record.get(1)` 这种下标访问，`parser.getHeaderMap()` 返回 `null`。
-- **和 required headers 的关系**：这条路径天然不受 required headers 影响——没有表头就没有"缺列"这个概念，`setRequiredHeaders(...)` 的校验逻辑不应该在 `formatHeader == null` 时触发。
-
-### 2.1.4 场景 2：带表头 CSV，自动探测第一行为表头，按列名取值
-
-**测试方法**：`autoDetectedHeader_firstRowBecomesColumnNames`（第 65～81 行）
-
-- **断点 1**：`CSVParser.java` 第 635 行 `if (formatHeader.length == 0) {`
-- **观察变量**：`formatHeader` —— 此时是一个**长度为 0 的空数组**（`setHeader()` 不传参数的效果），并非 `null`。这是本节和场景 1 的关键区别：`formatHeader == null` 和 `formatHeader.length == 0` 是两条不同的判断，分别对应"完全不处理表头"和"自动从第一行探测表头"。
-- **断点 2**：第 637 行 `final CSVRecord nextRecord = nextRecord();`——单步执行后观察 `nextRecord.values()`，会看到 `["date", "amount", "currency"]`，这一行物理数据被当成了表头，不会出现在后续 `getRecords()` 的结果里。
-- **断点 3**：第 672 行 `headerMap.put(header, Integer.valueOf(i));`——循环三次，`headerMap` 逐步变成 `{date=0, amount=1, currency=2}`。
-- **和 required headers 的关系**：这正是 required headers 最该生效的主路径——`headerMap` 在这里已经完全建好，但还没有任何"是否包含必需列"的检查。
-
-### 2.1.5 场景 3a：手工指定表头 + 跳过首行（正确用法）
-
-**测试方法**：`manuallySpecifiedHeader_withSkipHeaderRecordTrue_dataRowCountIsCorrect`（第 84～101 行）
-
-- **断点**：第 643 行 `if (format.getSkipHeaderRecord()) {`
-- **观察变量**：`format.getSkipHeaderRecord()` 为 `true`；单步进入分支后，第 644 行的 `nextRecord` 会读到字面上的表头行 `["date", "amount", "currency"]`，但这次只用它取 `headerComment`（第 646 行），**不会**把它当作数据使用——它被"消费掉"了，不会出现在后续 `getRecords()` 里。
-- **为什么看这个变量**：第 649 行 `headerRecord = formatHeader;` 说明手工指定模式下，真正用来建立 `headerMap` 的 `headerRecord` 来自**你在 `setHeader(...)` 里写的字符串数组**，而并非从输入流读出来的内容——第 644 行读出的那一行，唯一的作用就是"被跳过"。
-
-### 2.1.6 场景 3b：手工指定表头但忘记跳过首行（真实踩过的坑）
-
-**测试方法**：`manuallySpecifiedHeader_withoutSkipHeaderRecord_literalHeaderRowLeaksInAsData`（第 104～125 行）
-
-- **断点**：第 643 行同上，但这次 `format.getSkipHeaderRecord()` 为 `false`，整个 `if` 分支被跳过，直接执行第 649 行。
-- **观察变量**：单步执行到 `parser.getRecords()` 后，`records.size()` 是 **2**，并非预期的 1——`records.get(0).get("date")` 的值是字符串 `"date"`（字面意义上的表头文字），而并非一条真正的数据。
-- **这是一个真实的、值得记住的坑**：手工指定表头（`setHeader("date", "amount", "currency")`）**不会**自动消费输入流的第一行；如果那一行恰好也写了一遍表头文字，又没有显式 `setSkipHeaderRecord(true)`，它会被当成一条多余的数据记录混进结果里，导致记录数被多算一条。本次热身过程里这个坑被真实复现，而并非凭空转述。
-- **和 required headers 的关系**：如果 required headers 的校验逻辑写错了插入位置（比如写在"读表头之后"而非"建好 headerMap 之后"），这种"表头到底被不被跳过"的歧义会让校验结果变得不可预测——这也是 2.4.5 节开放问题第 5 条（"自动探测 vs 手工指定两种模式下校验时机是否一致"）在真实代码里的具体体现。
-
-### 2.1.7 场景 4：重复列名（默认容忍，可配置禁止）
-
-**测试方法 A**：`duplicateHeaderNames_defaultFormatAllowsThemByDefault`（第 128～148 行）
-
-- **断点**：第 663 行 `final boolean duplicatesAllowed = headerMode == DuplicateHeaderMode.ALLOW_ALL;`
-- **观察变量**：`format.getDuplicateHeaderMode()`——对 `CSVFormat.DEFAULT.builder()` 产出的格式，这个值是 `ALLOW_ALL`。这是一处容易弄错的细节：`DuplicateHeaderMode` 枚举自身的 Java 默认值并非 `ALLOW_ALL`，但 `CSVFormat.Builder.create()`（`CSVFormat.java` 第 214～223 行，关键在第 221 行 `.setDuplicateHeaderMode(DuplicateHeaderMode.ALLOW_ALL)`）在构造默认 `Builder` 时**显式**把它设成了 `ALLOW_ALL`——而几乎所有读者会通过 `CSVFormat.DEFAULT.builder()` 这条路径拿到 `Builder`，所以实际观察到的默认行为就是"允许重复列名"。
-- **断点 2**：第 672 行 `headerMap.put(header, Integer.valueOf(i));`——对输入 `"a,a,b"`，这一行会被执行两次把 `"a"` 映射到不同的 `i`（0 和 1），`Map.put` 会用后一次的值覆盖前一次，所以最终 `headerMap.get("a")` 等于 **1**（最后一次出现的列号），并非 0。
-
-**测试方法 B**：`duplicateHeaderNames_disallowModeThrowsBeforeFirstRecord`（第 150～162 行）
-
-- **断点**：第 665～669 行，即 `if (containsHeader && !duplicatesAllowed && !(blankHeader && emptyDuplicatesAllowed)) { throw new IllegalArgumentException(...); }`
-- **观察变量**：`containsHeader`（第二次遇到 `"a"` 时为 `true`）、`duplicatesAllowed`（显式设置 `DuplicateHeaderMode.DISALLOW` 后为 `false`）——两者组合触发第 666～668 行的异常，消息里包含 `"duplicate name"`。
-- **调用栈验证"即刻失败"**：在这个断点往上翻一帧，能看到调用栈停在 `CSVParser` 的构造函数（第 528 行）内部，而并非任何遍历记录的代码路径里——证明这类异常在拿到第一条记录之前就已经抛出。
-
-### 2.1.8 场景 5：空列名（默认禁止，可配置允许）
-
-**测试方法 A**：`emptyHeaderName_disallowedByDefault_throwsBeforeFirstRecord`（第 164～175 行）
-
-- **断点**：第 658～660 行 `if (blankHeader && !format.getAllowMissingColumnNames()) { throw new IllegalArgumentException("A header name is missing in " + ...); }`
-- **观察变量**：`blankHeader`（第 657 行 `CSVFormat.isBlank(header)` 对输入 `"date,,currency"` 中间那一列算出的结果为 `true`）、`format.getAllowMissingColumnNames()`（默认 `false`）。
-
-**测试方法 B**：`emptyHeaderName_allowedWhenAllowMissingColumnNamesTrue`（第 177～196 行）
-
-- **断点**：第 671～677 行，尤其是第 672 行 `headerMap.put(header, Integer.valueOf(i));`
-- **观察变量**：这是本次热身过程中一个**真实纠正过预期**的发现——`header` 在这里的值是空字符串 `""`，并非 `null`；第 671 行的判断条件是 `if (header != null)`，空字符串满足这个条件，所以它**会**被当作一个真实的列名放进 `headerMap` 和 `headerNames` 里。单步执行后展开 `headerMap`，能直接看到一个字面意义上的 `""` 键，和 `"date"`、`"currency"` 排在一起——这意味着 `parser.getHeaderNames().contains("")` 为 `true`，而并非被静默丢弃。写这份热身测试时最初假设空列名会被跳过，实跑后断言失败才发现这个真实行为，这正是"单步调试比凭直觉理解控制流更可信"的一次现场示范。
-
-### 2.1.9 场景 6：今天"缺列"只能惰性报错（required headers 的直接动机）
-
-**测试方法**：`missingRequiredColumn_todayOnlyFailsLazilyWhenGetIsCalled`（第 199～220 行）
-
-- **断点 1**：`CSVParser.java` 第 528 行 `this.headers = createHeaders();`——单步执行完这一行，`CSVParser` 的构造已经**成功返回**，即使 `headerMap` 里根本没有 `"currency"` 这一列。这就是需求原文里吐槽的体验的根源：header map 缺列这件事，在这一步完全没有被检查。
-- **断点 2**：`CSVRecord.java` 第 136～137 行 `if (index == null) { throw new IllegalArgumentException(String.format("Mapping for %s not found, expected one of %s", name, headerMap.keySet())); }`
-- **观察变量**：`index`（`headerMap.get("currency")` 的结果，为 `null`，因为 `headerMap` 只有 `date` 和 `amount` 两个键）、异常消息实测文本：`"Mapping for currency not found, expected one of [date, amount]"`——和需求原文里描述的报错体验完全一致。
-- **required headers 的插入点**：对比断点 1（第 528 行，构造已成功返回）和断点 2（只有业务代码真的调用 `get("currency")` 才会触发），可以直接看到两者之间有一段"本该报错但没有报错"的空当。`setRequiredHeaders(...)` 要做的事，就是在这段空当里插入一次主动检查——具体插入位置见下一节。
-
-### 2.1.10 required headers 新需求：生产代码的插入位置
-
-以下两处位置是**未来**实现 `setRequiredHeaders(String...)` 时会用到的，本次热身**没有**对它们做任何修改——这里只是标注清楚、留给后续章节。
-
-#### 2.1.10.1 `CSVFormat.Builder` 新增配置项，可以模仿的现有写法
-
-`CSVFormat.java` 第 627～630 行：
-
-```java
-public Builder setHeader(final String... header) {
-    this.headers = CSVFormat.clone(header);
-    return this;
-}
-```
-
-未来的 `setRequiredHeaders(String...)` 可以模仿这个形状——新增一个 `private String[] requiredHeaders;` 字段（可以紧邻第 249 行 `private String[] headers;` 声明），再加一个结构相同的 `setRequiredHeaders` 方法。`CSVFormat.Builder.create()`（第 214～223 行）目前只显式设置了 `setDuplicateHeaderMode(DuplicateHeaderMode.ALLOW_ALL)`，没有也不需要给 `requiredHeaders` 设默认值——保持 Java 默认的 `null`（即"不启用"）即可，这样对现有调用方完全向后兼容。
-
-#### 2.1.10.2 `CSVParser.createHeaders()` 新增校验，精确的插入行号
-
-`CSVParser.java`：
-
-```
-678                 }
-679             }
-680         }
-```
-
-插入点在**第 678 行（`for` 循环的右花括号）之后、第 679 行（`if (headerRecord != null)` 代码块的右花括号）之前**——也就是说，新代码应该成为第 679 行，把现有的第 679～680 行依次下移。选在这里而并非循环内部或循环之前，原因是：
-
-- 此时 `headerMap` 已经**完整建好**（第 652～678 行的循环已经跑完，包括重复名、空名的校验都已经处理过），required headers 的检查理应在"看到完整的列集合"之后才做，不要和"逐列扫描"的循环逻辑搅在一起。
-- 这整段代码仍然在 `createHeaders()` 方法体内，而 `createHeaders()` 又是在构造函数（第 528 行）里被**同步**调用的——所以只要新代码写在 `createHeaders()` 返回（第 682 行）之前，"必须在读第一条记录之前报错"这个约束就自动满足，不需要任何"预读一行再回退"之类的额外机制。这一点可以在断点 1（本文档第 2.1.9 节）单步验证：调用栈里能看到 `createHeaders()` 完全在构造函数内部执行完毕。
-
-插入的代码大致形状（示意，并非最终实现，异常类型/消息格式等留给后续章节的决策表裁决）：
-
-```java
-if (headerRecord != null) {
-    // ...既有的第 652～678 行...
-}
-// 新增：headerMap 已经完整建好，在这里检查 requiredHeaders
-if (format.getRequiredHeaders() != null) {
-    final List<String> missing = new ArrayList<>();
-    for (final String required : format.getRequiredHeaders()) {
-        if (headerMap == null || !headerMap.containsKey(required)) {
-            missing.add(required);
-        }
-    }
-    if (!missing.isEmpty()) {
-        throw new IllegalArgumentException("Missing required header(s): " + missing);
-    }
-}
-```
-
-### 2.1.11 本次热身过程中真实踩过的坑（汇总）
-
-- **空列名并非被丢弃，而是变成字面意义上的 `""` 键**（见 2.1.8 节测试方法 B）——写测试时最初的预期是错的，靠断言失败和单步调试才纠正过来。
-- **`DuplicateHeaderMode` 的实际默认值来自 `CSVFormat.Builder.create()` 的显式设置（`ALLOW_ALL`），而并非枚举或字段本身的 Java 默认值**（见 2.1.7 节）——和本书其他章节记录过的教训一致：不要相信文字描述的默认值，要去源码核实。
-- **手工指定表头不会自动跳过输入流的第一行**，这个坑被真实复现（见 2.1.6 节）——如果测试数据的第一行恰好又写了一遍表头文字，又没有显式设置 `setSkipHeaderRecord(true)`，记录数会被多算一条。
-- 本次新增的测试代码使用了 `List.of(...)`，在本机的 Java 构建配置下编译失败（`cannot find symbol: method of(...)`），说明目标代码库的 `maven-compiler-plugin` 源代码级别低于 Java 9——改用 `Arrays.asList(...)` 后问题消失。如果你在自己的环境里复现，遇到同样的编译错误，这是最常见的原因。
-
-### 2.1.12 行号对照表
-
-| 类 | 方法/字段 | 行号 | 说明 |
-| --- | --- | --- | --- |
-| `CSVParser` | 构造函数，`this.headers = createHeaders();` | 528 | `createHeaders()` 同步调用点，"必须先于第一条记录报错"的结构性保证 |
-| `CSVParser` | `createHeaders()` 方法体 | 628～683 | 表头解析与校验的核心方法 |
-| `CSVParser` | `formatHeader != null` 判断 | 632 | 是否启用表头模式的总开关 |
-| `CSVParser` | `formatHeader.length == 0` 判断 | 635 | 自动探测 vs 手工指定的分支点 |
-| `CSVParser` | 跳过首行逻辑 | 643～648 | `setSkipHeaderRecord(true)` 生效的位置 |
-| `CSVParser` | 空列名校验与抛出 | 658～660 | `allowMissingColumnNames=false` 时的即时失败 |
-| `CSVParser` | 重复列名校验与抛出 | 662～669 | `DuplicateHeaderMode` 的分支判断 |
-| `CSVParser` | `headerMap.put(...)` | 672 | 名字到列号映射的实际写入点 |
-| `CSVParser` | **required headers 建议插入点** | **679（新增，原 679～680 下移）** | 见本文档 2.1.10.2 节 |
-| `CSVFormat.Builder` | `create()`，`setDuplicateHeaderMode(ALLOW_ALL)` | 214～223（关键在 221） | `CSVFormat.DEFAULT.builder()` 的真实默认值 |
-| `CSVFormat.Builder` | `setHeader(String...)`（`setRequiredHeaders` 可模仿的形状） | 627～630 | 见本文档 2.1.10.1 节 |
-| `CSVRecord` | `get(String)`，缺列异常 | 130～137（抛出在 136～137） | 今天"缺列"只能惰性报错的位置 |
-| 新增测试类 | `HeaderHandlingWarmupCharacterizationTest` | 全文件 222 行 | 本文档 2.1.3～2.1.9 节对应的测试方法都在这个文件里 |
+不是一次发出去就什么都对，但也没有真正的推倒重来。一个 Round 0 问题加 5 个编号问题，一轮就问完、前沿清空；真正动手之后唯一的"返工"，是 3 处测试断言被实测结果纠正——这些纠正都发生在"写完测试、第一次跑"的阶段，改的是断言本身（因为最初的预期是错的），不是推翻已经写好的测试结构重新设计。两处我主动否决 Agent 默认推荐的地方（克隆方式、命名风格），也是在 Round 0 一次性定下来的，没有产生后续返工。
 
 <a id="ch2-2"></a>
 

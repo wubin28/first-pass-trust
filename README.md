@@ -45,7 +45,7 @@
 
 **实操环境要求：**
 
-本书不绑定任何特定工具和模型。全书每章结尾给出的提示词，发给你自己常用的、国内外口碑良好的任意 AI Coding Agent 搭配任意大模型都能跑通——例如 Claude Code 搭配 Opus 5.5、Codex CLI 搭配 GPT 6.1 Sol、OpenCode V2 搭配 GLM 5.3、Pi 搭配 DeepSeek v4 pro、CodeBuddy 搭配 GLM 5.3 等。全书实操以 **OpenCode v2 + DeepSeek V4.1 Flash** 为锚点组合（不需要国际信用卡、不依赖受限的国际网络访问，对国内 token 不自由的读者更现实）；接下来四章内容中的实操产出，就是用这个组合完成的。
+本书不绑定任何特定工具和模型。全书每章结尾给出的提示词，发给你自己常用的、国内外口碑良好的任意 AI Coding Agent 搭配任意大模型都能跑通——例如 Claude Code 搭配 Opus 5.5、Codex CLI 搭配 GPT 6.1 Sol、OpenCode V2 搭配 GLM 5.3、Pi 搭配 DeepSeek v4 pro、CodeBuddy 搭配 GLM 5.3 等。全书实操以 **OpenCode v2 + DeepSeek V4.1 Flash** 为锚点组合（不需要国际信用卡、不依赖受限的国际网络访问，对国内 token 不自由的读者更现实）。接下来四章内容中的实操产出，就是用这个组合完成的。
 
 ## 目录
 
