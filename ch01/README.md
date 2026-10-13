@@ -94,7 +94,7 @@ flowchart LR
 - **抽象清晰，适合做子域拆分和决策表推导的教学案例。** 它的核心类职责划分明确：`CSVFormat` 负责描述"一种 CSV 方言"、`CSVParser` 负责把输入流解析成记录并支持按名访问、`CSVPrinter` 负责把数据写出为符合格式的 CSV 文本、`Lexer` 与 `Token` 是解析过程中的词法层。这种清晰的职责边界，方便把一个新需求精确落到某个子域、某几个类上，而不必牵动整个代码库——第二章会详细展开这张子域地图。
 - **规则密集，天然适合决策表推导。** CSV 格式本身充满"在什么条件下、遇到什么输入、该有什么行为"的规则（表头缺列该怎么报错、大小写该不该敏感、和已有的重复/空列名校验该怎么交互），这类规则正是决策表测试法最擅长系统性梳理的需求类型。
 
-工具链上，本书以 **OpenCode + DeepSeek V4.1 Flash** 为实操锚点——这个组合不需要国际信用卡、不依赖受限的国际网络访问，对国内 token 不自由的读者更现实。但再次强调：本书讨论的方法不绑定特定工具和大模型，换成你自己常用的、国内外口碑良好的 AI Coding Agent 搭配大模型（如 Claude Code 搭配 Opus 5.5、Codex CLI 搭配 GPT 6.1 Sol、OpenCode V2 搭配 GLM 5.3、Pi 搭配 DeepSeek v4 pro、CodeBuddy 搭配 GLM 5.3 等），书中的提示词和方法论都应该能跑通。
+工具链上，本书以 **OpenCode + DeepSeek V4.1 Flash** 为实操锚点——这个组合不需要国际信用卡、不依赖受限的国际网络访问，对国内 token 不自由的读者更现实。但再次强调：本书讨论的方法不绑定特定工具和大模型，换成你自己常用的、国内外口碑良好的 AI Coding Agent 搭配大模型（如 Claude Code 搭配 Opus 5.5、Codex CLI 搭配 GPT 6.1 Sol、OpenCode V2 搭配 GLM 5.3、Pi 搭配 DeepSeek v4 pro、CodeBuddy 搭配 GLM 5.3 等），书中的提示词和方法论都能跑通。
 
 ---
 
