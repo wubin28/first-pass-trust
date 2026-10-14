@@ -91,8 +91,8 @@ Round 0 阶段 Agent 先按决策表文档的汇总表估算出"12 条规则 / �
 
 问题前沿清空后，Agent 产出了两份文档和一套完整的测试/生产代码：
 
-- **方案设计文档**（`ch04-1-solutions.md`）：对比了三个候选方案（单一通用方法扫全部 fixture / 按决策表分组的 5 个方法 / 按 12 条规则分组的 12 个方法），真实差异点都落在"测试入口怎么组织"这一个维度上——三个方案都遵守同一条硬性技术决定：**禁止用 JUnit 5 的 `@TestFactory` + `DynamicTest` 做"每个 fixture 一个独立测试入口"**，因为 VSCode 的 Java 测试扩展对动态测试在 Testing 面板里的支持长期有已知缺陷（面板经常不展开子节点，即便展开了单独调试也可能报错）；正确做法是用 `@ParameterizedTest(name = "{0}") + @MethodSource`，并用 `Named.of(displayName, fixture)` 包装每个 fixture。最终推荐并采纳了"按决策表分组的 5 个方法"（Table C / Table A / Table B / Interaction / Config）——顶层即业务结构，比"1 个方法扫全部"更容易按组定位失败用例，又比"按 12 条规则拆 12 个方法"样板更少。
-- **调试指南文档**（`ch04-2-debug-guide.md`）：按 40 条验收用例逐一给出断点位置（类名+真实行号+该行代码）、要观察的变量、以及这个变量为什么能验证决策表里对应的那条规则，并附一张行号对照表。
+- **方案设计文档**（`ch04-2-solutions-for-approved-scenarios.md`）：对比了三个候选方案（单一通用方法扫全部 fixture / 按决策表分组的 5 个方法 / 按 12 条规则分组的 12 个方法），真实差异点都落在"测试入口怎么组织"这一个维度上——三个方案都遵守同一条硬性技术决定：**禁止用 JUnit 5 的 `@TestFactory` + `DynamicTest` 做"每个 fixture 一个独立测试入口"**，因为 VSCode 的 Java 测试扩展对动态测试在 Testing 面板里的支持长期有已知缺陷（面板经常不展开子节点，即便展开了单独调试也可能报错）；正确做法是用 `@ParameterizedTest(name = "{0}") + @MethodSource`，并用 `Named.of(displayName, fixture)` 包装每个 fixture。最终推荐并采纳了"按决策表分组的 5 个方法"（Table C / Table A / Table B / Interaction / Config）——顶层即业务结构，比"1 个方法扫全部"更容易按组定位失败用例，又比"按 12 条规则拆 12 个方法"样板更少。
+- **调试指南文档**（`ch04-3-debug-guide-for-approved-scenarios.md`）：按 40 条验收用例逐一给出断点位置（类名+真实行号+该行代码）、要观察的变量、以及这个变量为什么能验证决策表里对应的那条规则，并附一张行号对照表。
 - **生产代码**（真实修改，而非只给补丁建议）：`CSVFormat.java` 新增 `requiredHeaders` 字段及其 getter/setter/`equals`/`hashCode`/构造器处理；`CSVParser.java` 在 `createHeaders()` 方法末尾、`return new Headers(...)` 之前新增唯一的解析期校验点。这与 2.4 节的影响分析和第三章 ADR 决策 6/7（在 `CSVFormat` 构造期先做配置自洽性校验、缺列报错放在解析期）完全吻合。
 - **测试代码**：`RequiredHeadersApprovalTest`（1 个类、5 个 `@ParameterizedTest` 方法）+ `ApprovalFixture`/`ApprovalFixtureParser`/`ApprovalFixtures`/`ApprovalScenarioExecutor`/`ApprovalFixtureRewriter` 这套解析器-执行器框架，以及按 table-c / table-a / table-b / interaction / config 五个子目录存放的 **40 份 `*.approved.md` fixture 文件**。生产代码和测试代码现已公开在 [`commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug) 仓库的提交 [`e7e92431`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug/commit/e7e92431c2be395a3b0bf20287a958117d6eb273) 里，感兴趣可以直接去看完整 diff。
 
@@ -123,9 +123,9 @@ Round 0 阶段 Agent 先按决策表文档的汇总表估算出"12 条规则 / �
 使用前请把下面的占位符替换成你自己的实际信息（若某个占位符你暂时没有答案，可以保留原样，提示词里已经写了兜底规则）：
 
 - `<WORK_DIRECTORY>`：你在 Agent 里设置的当前工作目录
-- `<DIALOGS>.md（可以使用./ch04-0-dialogs.md）`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
+- `<DIALOGS>.md（可以使用./ch04-1-dialogs.md）`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
 - `<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）` ：commons-csv 代码库在本机的路径（推荐和上一章保持一致，即当前工作目录下的 `./commons-csv` 子目录）
-- `<DECISION_TABLE_DOC_PATH>（即上一章的产出./ch03-2-decision-tables.md）` ： 上一章产出的决策表文档的相对路径
+- `<DECISION_TABLE_DOC_PATH>（即上一章的产出./ch03-3-decision-tables.md）` ： 上一章产出的决策表文档的相对路径
 - `<SOLUTIONS_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-2-solutions-for-approved-scenarios.md）` ： 方案设计文档的相对路径
 - `<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-3-debug-guide-for-approved-scenarios.md）` ： 调试指南文档的相对路径
 
@@ -215,7 +215,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 - 验收测试用例的**设计**已经由决策表方法完成，不需要你重新设计测试用例本身，你的任务是把它们**转化为可执行代码**。这些用例在
 
 ```
-<DECISION_TABLE_DOC_PATH>（即上一章的产出./ch03-2-decision-tables.md）
+<DECISION_TABLE_DOC_PATH>（即上一章的产出./ch03-3-decision-tables.md）
 ```
 
 文档的"Step 7：将规则转换为测试用例"章节里，通常以"前置条件 / 测试数据 / 预期结果"的结构逐条列出。
@@ -238,7 +238,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 #### A1. 必做的环境/代码勘查（不要跳过，不要假设）
 
 1. 确认 `<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）` 是否已经是一个可用的 git 工作副本；如果需要先 clone，执行 clone。
-2. 读 `<DECISION_TABLE_DOC_PATH>（即上一章的产出./ch03-2-decision-tables.md）` 的"Step 7"章节，数清楚总共有多少条验收测试用例，记下每条用例的前置条件/测试数据/预期结果。如果该章节之前还有"决策表类型选择""条件/规则/动作"等章节，通读一遍以理解每条用例背后的业务规则。
+2. 读 `<DECISION_TABLE_DOC_PATH>（即上一章的产出./ch03-3-decision-tables.md）` 的"Step 7"章节，数清楚总共有多少条验收测试用例，记下每条用例的前置条件/测试数据/预期结果。如果该章节之前还有"决策表类型选择""条件/规则/动作"等章节，通读一遍以理解每条用例背后的业务规则。
 3. 在代码库里搜索与上述需求原文相关的现有字段、方法、校验逻辑——即使这个功能"尚未实现"，也要找到**最合理的插入点**（比如现有的构造期校验方法、现有的解析期表头处理方法），并记录下具体的类名和当前行号。
 4. 搜索代码库里 `src/test/resources` 一类目录下是否已经存在类似"approved/golden file"的测试模式先例；如果有，优先复用已有约定；如果没有，说明这是全新引入。
 5. 检查本机开发环境（如果你有权限执行命令）：IDE 的 Java 调试/测试相关扩展是否已安装，版本是多少。

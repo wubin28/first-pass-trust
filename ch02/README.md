@@ -319,14 +319,14 @@ sequenceDiagram
 提示词里有几处用尖括号标记的占位符，需要你替换成自己机器上的实际信息：
 
 - `<WORK_DIRECTORY>`：你在 Agent 里设置的当前工作目录
-- `<DIALOGS>.md（可以使用./ch02-0-dialogs.md）`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
+- `<DIALOGS>.md（可以使用./ch02-1-1-dialogs.md）`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
 - `<COMMONS_CSV_REPO_PATH>（可以使用./commons-csv）`：你要分析、也要在上面新增测试的代码库源码目录路径，可以从 `https://github.com/apache/commons-csv` 克隆到本地，并保存到当前工作目录下的 `./commons-csv` 子目录下——**两份提示词用的是同一份工作副本**：热身阶段新增的 JUnit 5 测试会和你后续章节继续做的生产代码改动共存在这份副本里，这是预期行为，不需要为热身阶段单独准备一份"用完就扔"的副本
 - `<SCENARIOS_DOC_PATH>（可以使用./ch02-1-2-scenarios-for-warming-up.md）`：第一份热身提示词产出的"端到端测试场景清单"文档的相对路径（场景清单 + 挑出的代表性场景 + 场景↔测试方法对应表），第二份提示词会直接引用这份文件
 - `<DEBUG_GUIDE_DOC_PATH>（可以使用./ch02-1-3-debug-guide.md）`：第一份热身提示词产出的单步调试指南文档的相对路径
 - `<SUBDOMAINS_DOC_PATH>（可以使用./ch02-2-2-subdomains.md）`：第二份提示词产出的子域分析文档的相对路径
 - `<IMPACT_ANALYSIS_DOC_PATH>（可以使用./ch02-2-3-impact-analysis.md）`：第二份提示词产出的影响分析文档的相对路径
 
-既然 Agent 能够在你本地电脑上执行操作，那么推荐你在本地电脑为实操创建一个空目录，比如目录名可以叫 `<WORK_DIRECTORY>`；然后在终端里进入这个目录，并启动你常用的 Agent ，比如 OpenCode V2 ，并搭配你常用的大模型，比如 DeepSeek V4.1 Flash；之后就可以把已经替换好上述占位符的完整提示词依次复制给 Agent，开始实操。在"假设体检加追问"阶段，你能在这个目录中找到 Agent 生成的对话记录文件 `<DIALOGS>.md（可以使用./ch02-0-dialogs.md）` ，方便你查看，以及当 Agent 因故中断后能换一个 Agent 继续。
+既然 Agent 能够在你本地电脑上执行操作，那么推荐你在本地电脑为实操创建一个空目录，比如目录名可以叫 `<WORK_DIRECTORY>`；然后在终端里进入这个目录，并启动你常用的 Agent ，比如 OpenCode V2 ，并搭配你常用的大模型，比如 DeepSeek V4.1 Flash；之后就可以把已经替换好上述占位符的完整提示词依次复制给 Agent，开始实操。在"假设体检加追问"阶段，你能在这个目录中找到 Agent 生成的对话记录文件 `<DIALOGS>.md（可以使用./ch02-1-1-dialogs.md）` ，方便你查看，以及当 Agent 因故中断后能换一个 Agent 继续。
 
 <details>
 <summary>📋 第一份：热身提示词——先用单步调试熟悉陌生代码库（点击展开/折叠，可直接复制给 Agent）</summary>

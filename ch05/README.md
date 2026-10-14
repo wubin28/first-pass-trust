@@ -125,10 +125,10 @@ Agent 产出的“故障注入指南”没有按"测试用例"一条一条地讲
 使用前请把下面所有占位符替换成你自己的实际信息（如果某个占位符暂时没有明确答案，可以保留原样，让 Agent 自己判断并在文档里说明它做出的假设）：
 
 - `<WORK_DIRECTORY>`：你在 Agent 里设置的当前工作目录
-- `<DIALOGS>.md（可以使用./ch05-0-dialogs.md）`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
+- `<DIALOGS>.md（可以使用./ch05-1-dialogs.md）`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
 - `<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）`：commons-csv 代码库在本机的路径（推荐和上一章保持一致，即当前工作目录下的 `./commons-csv` 子目录）
-- `<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（即上一章的产出ch04-2-debug-guide-for-approved-scenarios.md））`：上一章动手练习中你自己产出的调试指南文档路径（里面应包含各测试对应的生产代码类名+行号+断点）
-- `<DECISION_TABLE_DOC_PATH>（即第 3 章的产出ch03-2-decision-tables.md）`：要做故障注入测试的验收测试范围参见第 3 章的 decision table 文档的“Step 7：把每条规则转成验收测试用例”
+- `<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（即上一章的产出ch04-3-debug-guide-for-approved-scenarios.md））`：上一章动手练习中你自己产出的调试指南文档路径（里面应包含各测试对应的生产代码类名+行号+断点）
+- `<DECISION_TABLE_DOC_PATH>（即第 3 章的产出ch03-3-decision-tables.md）`：要做故障注入测试的验收测试范围参见第 3 章的 decision table 文档的“Step 7：把每条规则转成验收测试用例”
 - `<SOLUTIONS_FOR_FAULT_INJECTION_DOC_PATH>（可以使用./ch05-2-solutions-for-fault-injection.md）`：设计的 3 个故障注入方案及推荐方案的最终产出文档路径（里面应包含每个方案的主要内容、优势、劣势、适用场景、不适用场景，以及推荐方案的推荐理由）
 - `<FAULT_INJECTION_GUIDE_DOC_PATH>（可以使用./ch05-3-fault-injection-guide.md）`：最终产出的手工故障注入指南文档路径（里面应包含每条故障对应的生产代码类名+行号+注入前代码+注入后代码+注入后运行该测试时期望看到的报错信息）
 - `<USAGE_SCOPE>`：这套故障注入设施的用途定位。示例："一次性验证/学习工具，不需要长期留在代码库里、不需要进 CI"
@@ -219,13 +219,13 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 - **要保护的验收测试所对应的“Step 7：把每条规则转成验收测试用例”所在的 decision table 文档**：
 
 ```
-<DECISION_TABLE_DOC_PATH>（即第 3 章的产出ch03-2-decision-tables.md）
+<DECISION_TABLE_DOC_PATH>（即第 3 章的产出ch03-3-decision-tables.md）
 ```
 
 - **这些测试对应生产代码的调试指南**（里面列出了每个测试命中的生产代码类名、行号、断点、变量）：
 
 ```
-<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（即上一章的产出ch04-2-debug-guide-for-approved-scenarios.md））
+<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（即上一章的产出ch04-3-debug-guide-for-approved-scenarios.md））
 ```
 
 - **这套设施的用途定位**：

@@ -148,9 +148,9 @@ Agent 产出的 ADR 文档（`ch03-2-adr.md`）一共裁决了 10 条决策（D1
 使用前请把下面三处占位符替换成你自己的实际信息：
 
 - `<WORK_DIRECTORY>`：你在 Agent 里设置的当前工作目录
-- `<DIALOGS>.md（可以使用./ch03-0-dialogs.md）`：保存你和 Agent 之间对话记录的相对路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
-- `<SUBDOMAINS_DOC_PATH>（即上一章的产出./ch02-2-1-subdomains.md）`：子域分析文档的相对路径
-- `<IMPACT_ANALYSIS_DOC_PATH>（即上一章的产出./ch02-2-2-impact-analysis.md）`：影响分析文档的相对路径
+- `<DIALOGS>.md（可以使用./ch03-1-dialogs.md）`：保存你和 Agent 之间对话记录的相对路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
+- `<SUBDOMAINS_DOC_PATH>（即上一章的产出./ch02-2-2-subdomains.md）`：子域分析文档的相对路径
+- `<IMPACT_ANALYSIS_DOC_PATH>（即上一章的产出./ch02-2-3-impact-analysis.md）`：影响分析文档的相对路径
 - `<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）`：commons-csv 代码库在本机的路径（推荐和上一章保持一致，即当前工作目录下的 `./commons-csv` 子目录）
 - `<ADR_DOC_PATH>（可以使用./ch03-2-adr.md）`：架构决策记录（ADR）文档的相对路径
 - `<DECISION_TABLE_DOC_PATH>（可以使用./ch03-3-decision-tables.md）`：决策表文档的相对路径
@@ -233,13 +233,13 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 
 - 子域分析文档：
 ```
-<SUBDOMAINS_DOC_PATH>（即上一章的产出./ch02-2-1-subdomains.md）
+<SUBDOMAINS_DOC_PATH>（即上一章的产出./ch02-2-2-subdomains.md）
 ```
 （请阅读该文档以了解 CSVFormat / CSVParser / CSVRecord / Lexer 等类在这个代码库里分别承担什么职责，哪些是"核心业务逻辑"，哪些是"支撑性配置"）
 
 - 影响分析文档：
 ```
-<IMPACT_ANALYSIS_DOC_PATH>（即上一章的产出./ch02-2-2-impact-analysis.md）
+<IMPACT_ANALYSIS_DOC_PATH>（即上一章的产出./ch02-2-3-impact-analysis.md）
 ```
 （请阅读该文档以了解这次新需求会牵动哪些类、哪些类不受影响）
 
@@ -276,7 +276,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 
 ## 第二步：先处理需求里没有讲清楚的开放设计问题（产出 ADR 文档 1）
 
-这类"需求挂在一个类的 API 上，但真正的业务规则该不该落在别的类里、该不该与现有某个配置项交互"的问题，往往有好几个关键细节是需求原文没有明说的。在动笔设计决策表之前，你需要先自己识别并裁决这些开放问题（**务必优先**点对点回答上述“影响分析文档”`<IMPACT_ANALYSIS_DOC_PATH>（即上一章的产出./ch02-2-2-impact-analysis.md）`列出的“开放设计问题”），形式上做成一份轻量的 ADR（Architecture Decision Record，架构决策记录）。
+这类"需求挂在一个类的 API 上，但真正的业务规则该不该落在别的类里、该不该与现有某个配置项交互"的问题，往往有好几个关键细节是需求原文没有明说的。在动笔设计决策表之前，你需要先自己识别并裁决这些开放问题（**务必优先**点对点回答上述“影响分析文档”`<IMPACT_ANALYSIS_DOC_PATH>（即上一章的产出./ch02-2-3-impact-analysis.md）`列出的“开放设计问题”），形式上做成一份轻量的 ADR（Architecture Decision Record，架构决策记录）。
 
 **至少要覆盖以下问题**（如果你在第一步核查代码时发现了需求原文没提到、但确实需要裁决的额外问题，也要一并补充进来，不要漏掉）：
 
@@ -306,7 +306,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 
 ## 第三步：用决策表测试法设计验收测试用例（产出 Decision Table 文档 2）
 
-基于 `<SUBDOMAINS_DOC_PATH>（即上一章的产出./ch02-2-1-subdomains.md）` 中列出的各个类的职责，严格按照附录 A 里"How to Create a Decision Table: Step by Step"的 7 个步骤来做，不要跳步，每一步都要把结果和理由写出来：
+基于 `<SUBDOMAINS_DOC_PATH>（即上一章的产出./ch02-2-2-subdomains.md）` 中列出的各个类的职责，严格按照附录 A 里"How to Create a Decision Table: Step by Step"的 7 个步骤来做，不要跳步，每一步都要把结果和理由写出来：
 
 1. **先选定决策表类型，并给出理由**。一共有 5 种类型（Limited / Extended / Condition Action / Switch / Rule Based）。你要对照你的任务的真实复杂度（条件数量、条件之间是否存在互相影响/门控关系）来挑选，并在文档里明确说："因为……所以我选……"，不能跳过这一步直接开始画表。
 2. **Step 1：识别所有条件**——条件要能追溯到第一步的代码核查结果和第二步的 ADR 决策，不能是含糊的描述。同时要明确写出"哪些看起来像条件、但其实不影响结果、因此被我排除掉了"的维度，并说明排除理由（这一点很重要，是判断你有没有真正理解系统行为、还是只是在堆砌组合的关键标志）。
