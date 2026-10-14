@@ -262,6 +262,38 @@ graph TD
 
 IMPACT_ANALYSIS 文档（`ch02-2-2-impact-analysis.md`）最想讲清楚的一条结论是：**"需求挂在哪个类的 API 上"不等于"业务规则该落在哪个子域"，也不等于"规则真正被强制执行的地方"**。需求字面上说"给 `CSVFormat.Builder` 加一个方法"，第一反应是只改 `CSVFormat`；但真正的业务规则（"必需列必须存在"）属于核心子域①（格式规则与不变式），而规则的强制执行点却必须落在核心子域②（记录读入与解析），因为只有解析期才能拿到自动探测出来的真实表头——这恰好和现状里"重复列名校验分居构建期与解析期两处"是同一个结构。文档据此给出逐类改动清单：`CSVFormat`/`Builder` 新增 `requiredHeaders` 字段和 setter（供②访问）、`CSVParser.createHeaders()` 末尾新增必需列检查、`CSVRecord` 代码不改但其"晚报错"路径会被正常路径绕开；`CSVPrinter`、`Lexer`、`Token`、`ExtendedBufferedReader`、`Constants` 等明确标注"不受影响"。
 
+#### 时序图（新增检查步骤插在哪一步）
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as 调用方
+    participant B as CSVFormat.Builder
+    participant F as CSVFormat
+    participant P as CSVParser
+    participant L as Lexer
+
+    U->>B: setRequiredHeaders("currency","amount")
+    B-->>B: 记录 requiredHeaders（新字段）
+    U->>B: get() / build()
+    B->>F: new CSVFormat(builder)
+    Note over F: validate()（构建期）<br/>此处只知"显式 header"；自动探测场景无表头可用
+    U->>P: CSVParser.parse(reader, format)
+    P->>P: new CSVParser(builder)  ← 构造期
+    P->>L: new Lexer(format, new ExtendedBufferedReader(...))
+    P->>P: createHeaders()  → 读掉表头行、构建 headerMap
+    Note over P: ★★ 新增检查插在这里：headerMap 已构建完成、即将 return Headers 之前
+    alt requiredHeaders 全部存在
+        P->>P: 构造完成（headers 就绪）
+        U->>P: iterator().next()
+        P-->>U: 返回第一条 CSVRecord（recordNumber=1）
+    else 缺少某些列
+        P-->>U: 抛出"缺列"错误（列出缺失列名）——发生在第一条记录被返回之前
+    end
+```
+
+**新增步骤位置**：`createHeaders()` 末尾、`return new Headers(...)` 之前（源码 L682）。它**先于**任何数据记录的返回（`nextRecord()` 在迭代期才被再次调用）。
+
 文档末尾留了 6 个没有标准答案的开放设计问题：异常类型该复用 `IllegalArgumentException` 还是新建类型、校验要不要同时覆盖"显式表头"和"自动探测表头"两种来源、是否要跟随 `ignoreHeaderCase`、新校验和既有的空列名/重复列名校验谁先谁后报错、没有表头时 `requiredHeaders` 该怎么办、要不要对称处理写方向——每个问题都只写清楚"权衡点是什么"，不给作者自己的倾向，留给读者在第三章用决策表把它们一个个裁决掉。
 
 ### 可信怎么实现的
