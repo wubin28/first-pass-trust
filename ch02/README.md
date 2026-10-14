@@ -366,7 +366,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 
 ### 背景
 
-- 目标代码库（如果本地还没有，请先 `git clone https://github.com/apache/commons-csv` 到这个路径）：
+- 目标代码库（如果本地还没有，请先 `git clone https://github.com/apache/commons-csv` 到下面这个路径）：
 
 ```
 <COMMONS_CSV_REPO_PATH>（可以使用./commons-csv）
@@ -592,7 +592,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 （本提示词 4.2 中第 1 条中要求的类比映射表格，以及这个类比本身作为"假设"的声明）
 
 ## 1. 用来验证子域边界的端到端场景
-（不需要重新设计一遍——请直接读取并引用
+（不需要重新设计一遍——请直接读取并引用之前"热身提示词"产出的
 
 ```
 <SCENARIOS_DOC_PATH>（可以使用./ch02-1-1-scenarios-for-warming-up.md）
@@ -607,7 +607,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 （一张 Mermaid graph，把所有类按子域分组放进 subgraph，箭头表示直接引用/调用/构造关系，并用颜色区分后面判定的 core/generic/supporting）
 
 ## 4. 子域层面的依赖关系与"接口"
-（一张 Mermaid graph，子域粒度，箭头上标注"接口是什么"；并附上 4.2 中的第 5 条要求的 bounded context 澄清说明，以及用 Ch.4 词汇做类比的 2-3 条说明）
+（一张 Mermaid graph，子域粒度，箭头上标注"接口是什么"；并附上 4.2 中的第 5 条要求的 bounded context 澄清说明，以及用本提示词附录中 Ch.4 词汇做类比的 2-3 条说明）
 
 ## 5. Core / Generic / Supporting 判定
 （表格：子域 | 判定 | 判定理由——理由要覆盖 4.3 中的四个维度；并单独写一段说明你是如何避免"代码行数=复杂度"这个常见错误的）
