@@ -123,7 +123,7 @@ Agent 产出的 ADR 文档（`ch03-1-adr.md`）一共裁决了 10 条决策（D1
 
 使用前请把下面三处占位符替换成你自己的实际信息：
 
-- `<CURRENT_DIRECTORY>`：你在 Agent 里设置的当前工作目录
+- `<WORK_DIRECTORY>`：你在 Agent 里设置的当前工作目录
 - `<DIALOGS>.md（可以使用./ch03-0-dialogs.md）`：保存你和 Agent 之间对话记录的相对路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
 - `<SUBDOMAINS_DOC_PATH>（即上一章的产出./ch02-2-1-subdomains.md）`：子域分析文档的相对路径
 - `<IMPACT_ANALYSIS_DOC_PATH>（即上一章的产出./ch02-2-2-impact-analysis.md）`：影响分析文档的相对路径
@@ -142,7 +142,7 @@ Agent 产出的 ADR 文档（`ch03-1-adr.md`）一共裁决了 10 条决策（D1
 当前目录为
 
 ```
-<CURRENT_DIRECTORY>
+<WORK_DIRECTORY>
 ```
 
 。请按照下面的要求完成任务，并在你每一次停下来等待我回复你的澄清问题时，将上一次追加前你我之间的完整对话（包括下面的Round 0）以markdown格式追加到

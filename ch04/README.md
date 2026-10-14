@@ -122,7 +122,7 @@ Round 0 阶段 Agent 先按决策表文档的汇总表估算出"12 条规则 / �
 
 使用前请把下面的占位符替换成你自己的实际信息（若某个占位符你暂时没有答案，可以保留原样，提示词里已经写了兜底规则）：
 
-- `<CURRENT_DIRECTORY>`：你在 Agent 里设置的当前工作目录
+- `<WORK_DIRECTORY>`：你在 Agent 里设置的当前工作目录
 - `<DIALOGS>.md（可以使用./ch04-0-dialogs.md）`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
 - `<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）` ：commons-csv 代码库在本机的路径（推荐和上一章保持一致，即当前工作目录下的 `./commons-csv` 子目录）
 - `<DECISION_TABLE_DOC_PATH>（即上一章的产出./ch03-2-decision-tables.md）` ： 上一章产出的决策表文档的相对路径
@@ -140,7 +140,7 @@ Round 0 阶段 Agent 先按决策表文档的汇总表估算出"12 条规则 / �
 当前目录为
 
 ```
-<CURRENT_DIRECTORY>
+<WORK_DIRECTORY>
 ```
 
 。请按照下面的要求完成任务，并在你每一次停下来等待我回复你的澄清问题时，将上一次追加前你我之间的完整对话（包括下面的Round 0）以markdown格式追加到

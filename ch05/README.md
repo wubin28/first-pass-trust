@@ -124,7 +124,7 @@ Agent 产出的《故障注入指南》没有按"测试用例"一条一条地讲
 
 使用前请把下面所有占位符替换成你自己的实际信息（如果某个占位符暂时没有明确答案，可以保留原样，让 Agent 自己判断并在文档里说明它做出的假设）：
 
-- `<CURRENT_DIRECTORY>`：你在 Agent 里设置的当前工作目录
+- `<WORK_DIRECTORY>`：你在 Agent 里设置的当前工作目录
 - `<DIALOGS>.md（可以使用./ch05-0-dialogs.md）`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
 - `<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）`：commons-csv 代码库在本机的路径（推荐和上一章保持一致，即当前工作目录下的 `./commons-csv` 子目录）
 - `<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（即上一章的产出ch04-2-debug-guide-for-approved-scenarios.md））`：上一章动手练习中你自己产出的调试指南文档路径（里面应包含各测试对应的生产代码类名+行号+断点）
@@ -145,7 +145,7 @@ Agent 产出的《故障注入指南》没有按"测试用例"一条一条地讲
 当前目录为
 
 ```
-<CURRENT_DIRECTORY>
+<WORK_DIRECTORY>
 ```
 
 。请按照下面的要求完成任务，并在你每一次停下来等待我回复你的澄清问题时，将上一次追加前你我之间的完整对话（包括下面的Round 0）以markdown格式追加到
