@@ -126,8 +126,8 @@ Round 0 阶段 Agent 先按决策表文档的汇总表估算出"12 条规则 / �
 - `<DIALOGS>.md（可以使用./ch04-0-dialogs.md）`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
 - `<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）` ：commons-csv 代码库在本机的路径（推荐和上一章保持一致，即当前工作目录下的 `./commons-csv` 子目录）
 - `<DECISION_TABLE_DOC_PATH>（即上一章的产出./ch03-2-decision-tables.md）` ： 上一章产出的决策表文档的相对路径
-- `<SOLUTIONS_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-1-solutions-for-approved-scenarios.md）` ： 方案设计文档的相对路径
-- `<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-2-debug-guide-for-approved-scenarios.md）` ： 调试指南文档的相对路径
+- `<SOLUTIONS_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-2-solutions-for-approved-scenarios.md）` ： 方案设计文档的相对路径
+- `<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-3-debug-guide-for-approved-scenarios.md）` ： 调试指南文档的相对路径
 
 推荐你在上一章为实操创建的目录中继续本章的实操。
 
@@ -146,7 +146,7 @@ Round 0 阶段 Agent 先按决策表文档的汇总表估算出"12 条规则 / �
 。请按照下面的要求完成任务，并在你每一次停下来等待我回复你的澄清问题时，将上一次追加前你我之间的完整对话（包括下面的Round 0）以markdown格式追加到
 
 ```
-<DIALOGS>.md（可以使用./ch04-0-dialogs.md）
+<DIALOGS>.md（可以使用./ch04-1-dialogs.md）
 ```
 
 文件（如果这个文件不存在，就新建）末尾，以便我在回复你的问题前仔细阅读。下面是要求：
@@ -253,7 +253,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 把这份方案设计文档保存为 
 
 ```
-<SOLUTIONS_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-1-solutions-for-approved-scenarios.md）
+<SOLUTIONS_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-2-solutions-for-approved-scenarios.md）
 ```
 
 ### 阶段 B：按推荐方案实现
@@ -266,7 +266,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 6. **产出调试指南文档**（
 
 ```
-<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-2-debug-guide-for-approved-scenarios.md）
+<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-3-debug-guide-for-approved-scenarios.md）
 ```
 
 ），结构参考：打开仓库文件夹后 Testing 面板怎么用、每一条验收测试用例一节（断点：类名+行号+这一行代码内容；观察变量：变量名+预期值+为什么能验证对应规则）、测试执行逻辑本身的 1~3 个关键断点、最后附一张"行号对照表"。

@@ -38,8 +38,8 @@
 
 问题前沿清空后，Agent 产出了两份文档：
 
-- **场景清单**（`ch02-1-1-scenarios-for-warming-up.md`）：先列出 35 个宽口径的 CSV 处理场景（S01～S35，覆盖表头来源、表头校验、按名/按下标取值、以及一组本轮有意不覆盖的其它行为），再从中挑出 19 个和"表头/必需列"直接相关的代表性场景并写明理由，最后给出场景与测试方法的对应表。
-- **调试指南**（`ch02-1-2-debug-guide.md`）：开头给出复制即用的命令，正文按测试类（`HeaderResolutionTest`/`HeaderValidationTest`/`HeaderLookupTest`）逐个测试方法给出断点位置（类名+行号+该行代码）、要观察的变量、以及这个变量为什么能验证对应行为，并专门分析了 `setRequiredHeaders` 未来最合适的插入点——`CSVParser.createHeaders()` 返回之前（`CSVParser.java:682` 之前），因为此时 `headerMap` 已经完整建好，而这段代码又在构造函数（`CSVParser.java:528`）里被同步调用，天然满足"必须在读第一条记录之前报错"的约束。文末附一张行号对照表和一节"实测踩坑记录"。
+- **场景清单**（`ch02-1-2-scenarios-for-warming-up.md`）：先列出 35 个宽口径的 CSV 处理场景（S01～S35，覆盖表头来源、表头校验、按名/按下标取值、以及一组本轮有意不覆盖的其它行为），再从中挑出 19 个和"表头/必需列"直接相关的代表性场景并写明理由，最后给出场景与测试方法的对应表。
+- **调试指南**（`ch02-1-3-debug-guide.md`）：开头给出复制即用的命令，正文按测试类（`HeaderResolutionTest`/`HeaderValidationTest`/`HeaderLookupTest`）逐个测试方法给出断点位置（类名+行号+该行代码）、要观察的变量、以及这个变量为什么能验证对应行为，并专门分析了 `setRequiredHeaders` 未来最合适的插入点——`CSVParser.createHeaders()` 返回之前（`CSVParser.java:682` 之前），因为此时 `headerMap` 已经完整建好，而这段代码又在构造函数（`CSVParser.java:528`）里被同步调用，天然满足"必须在读第一条记录之前报错"的约束。文末附一张行号对照表和一节"实测踩坑记录"。
 
 这两份文档背后是真实写出并跑通的测试代码：`kata` 包下新增 3 个 JUnit 5 特征测试类——`HeaderResolutionTest`（6 个方法）、`HeaderValidationTest`（8 个方法）、`HeaderLookupTest`（4 个方法），共 18 个 `@Test`，435 行，已经公开在 [`commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug) 仓库的提交 [`7da9dc74`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug/commit/7da9dc74ef9a051de87aa00b229852e2aa0f0ba9) 里。这些测试只验证 commons-csv **今天已有**的行为，故意不实现 `setRequiredHeaders`——那是留给后面章节做 TDD 的事。
 
@@ -119,7 +119,7 @@ strategic design 原本是为公司和团队设计的分析工具，用在一个
 
 ### 产出：6 个子域、哪个核心哪个通用哪个支撑、靠什么证据分出来的
 
-问题前沿清空后，Agent 产出了文档 SUBDOMAINS （`ch02-2-1-subdomains.md`），把 commons-csv 这 12 个生产类收敛成 6 个子域：①格式规则与不变式（`CSVFormat` 的规则部分 + `QuoteMode` + `DuplicateHeaderMode`，判定 **Core**）、②记录读入与解析（`CSVParser`/`Lexer`/`Token`/`CSVRecord`，判定 **Core**）、③格式配置与预定义方言（`CSVFormat` 的配置部分 + `Predefined`，**Supporting**）、④记录写出与生成（`CSVPrinter`，**Supporting**）、⑤字符流缓冲与字节跟踪（`ExtendedBufferedReader`，**Generic**）、⑥基础设施与错误契约（`Constants`/`CSVException`/`package-info`，**Generic**）。每一条判定都按"竞争优势类比／复杂度／波动性／能否外包替代"四个维度写了依据，波动性这一项并非凭印象，而是真的跑了 `git log --oneline` 数出 `CSVFormat.java` 447 次提交、`CSVParser.java` 285 次、`CSVException.java` 只有 2 次——这组数字直接支撑了"规则和解析是核心、异常基类是通用件"的判断。文档里还特意留了一节"⚠️ 分歧/存疑"，老实写出"记录写出也可以被看作核心子域"这种反方观点，而并非把所有争议都抹平成一个确定结论。
+问题前沿清空后，Agent 产出了文档 SUBDOMAINS （`ch02-2-2-subdomains.md`），把 commons-csv 这 12 个生产类收敛成 6 个子域：①格式规则与不变式（`CSVFormat` 的规则部分 + `QuoteMode` + `DuplicateHeaderMode`，判定 **Core**）、②记录读入与解析（`CSVParser`/`Lexer`/`Token`/`CSVRecord`，判定 **Core**）、③格式配置与预定义方言（`CSVFormat` 的配置部分 + `Predefined`，**Supporting**）、④记录写出与生成（`CSVPrinter`，**Supporting**）、⑤字符流缓冲与字节跟踪（`ExtendedBufferedReader`，**Generic**）、⑥基础设施与错误契约（`Constants`/`CSVException`/`package-info`，**Generic**）。每一条判定都按"竞争优势类比／复杂度／波动性／能否外包替代"四个维度写了依据，波动性这一项并非凭印象，而是真的跑了 `git log --oneline` 数出 `CSVFormat.java` 447 次提交、`CSVParser.java` 285 次、`CSVException.java` 只有 2 次——这组数字直接支撑了"规则和解析是核心、异常基类是通用件"的判断。文档里还特意留了一节"⚠️ 分歧/存疑"，老实写出"记录写出也可以被看作核心子域"这种反方观点，而并非把所有争议都抹平成一个确定结论。
 
 这份文档还解释了一个我一开始也会犯的错：人们最容易把"技术分层"误当成"子域边界"，于是把代码最长、最底层的 `CSVFormat`/`Lexer` 一起封成"核心"，因为它们"最难、最长"；但按子域边界的标准，字符缓冲和词法切分其实是换哪个 CSV 库都要做的通用活，真正的核心是"识别一种 CSV 方言、定义合法格式的业务规则"。
 
@@ -260,7 +260,7 @@ graph TD
 
 ### 产出：一条反直觉的结论、一张改动清单、6 个留白问题
 
-IMPACT_ANALYSIS 文档（`ch02-2-2-impact-analysis.md`）最想讲清楚的一条结论是：**"需求挂在哪个类的 API 上"不等于"业务规则该落在哪个子域"，也不等于"规则真正被强制执行的地方"**。需求字面上说"给 `CSVFormat.Builder` 加一个方法"，第一反应是只改 `CSVFormat`；但真正的业务规则（"必需列必须存在"）属于核心子域①（格式规则与不变式），而规则的强制执行点却必须落在核心子域②（记录读入与解析），因为只有解析期才能拿到自动探测出来的真实表头——这恰好和现状里"重复列名校验分居构建期与解析期两处"是同一个结构。文档据此给出逐类改动清单：`CSVFormat`/`Builder` 新增 `requiredHeaders` 字段和 setter（供②访问）、`CSVParser.createHeaders()` 末尾新增必需列检查、`CSVRecord` 代码不改但其"晚报错"路径会被正常路径绕开；`CSVPrinter`、`Lexer`、`Token`、`ExtendedBufferedReader`、`Constants` 等明确标注"不受影响"。
+IMPACT_ANALYSIS 文档（`ch02-2-3-impact-analysis.md`）最想讲清楚的一条结论是：**"需求挂在哪个类的 API 上"不等于"业务规则该落在哪个子域"，也不等于"规则真正被强制执行的地方"**。需求字面上说"给 `CSVFormat.Builder` 加一个方法"，第一反应是只改 `CSVFormat`；但真正的业务规则（"必需列必须存在"）属于核心子域①（格式规则与不变式），而规则的强制执行点却必须落在核心子域②（记录读入与解析），因为只有解析期才能拿到自动探测出来的真实表头——这恰好和现状里"重复列名校验分居构建期与解析期两处"是同一个结构。文档据此给出逐类改动清单：`CSVFormat`/`Builder` 新增 `requiredHeaders` 字段和 setter（供②访问）、`CSVParser.createHeaders()` 末尾新增必需列检查、`CSVRecord` 代码不改但其"晚报错"路径会被正常路径绕开；`CSVPrinter`、`Lexer`、`Token`、`ExtendedBufferedReader`、`Constants` 等明确标注"不受影响"。
 
 #### 时序图（新增检查步骤插在哪一步）
 
@@ -313,7 +313,7 @@ sequenceDiagram
 
 使用前请注意：
 
-- 两份提示词**各自独立使用、各自完整**——第二份并不假设你和 Agent 的对话还记得第一份的内容（你完全可以换一个新会话、甚至换一个 Agent 来跑第二份），所以第二份提示词里仍然带着完整的需求原文和 DDD 摘要附录，并不只是"见上一份提示词"这种引用式写法。第二份提示词原本要求 Agent 自己设计一遍"用来验证子域边界的端到端场景"，现在改成直接引用第一份提示词产出的场景清单文件（`ch02-1-1-scenarios-for-warming-up.md`）——所以**请先完整跑完第一份热身提示词，拿到场景清单文件之后，再跑第二份**。
+- 两份提示词**各自独立使用、各自完整**——第二份并不假设你和 Agent 的对话还记得第一份的内容（你完全可以换一个新会话、甚至换一个 Agent 来跑第二份），所以第二份提示词里仍然带着完整的需求原文和 DDD 摘要附录，并不只是"见上一份提示词"这种引用式写法。第二份提示词原本要求 Agent 自己设计一遍"用来验证子域边界的端到端场景"，现在改成直接引用第一份提示词产出的场景清单文件（`ch02-1-2-scenarios-for-warming-up.md`）——所以**请先完整跑完第一份热身提示词，拿到场景清单文件之后，再跑第二份**。
 - 两份提示词都要求 Agent **自己读源码、自己判断**，不会把本章 2.3～2.4 节的具体结论告诉它——这是故意的：先让你的 Agent 重新走一遍分析过程，再拿它的产出和本章内容对比，这样才有真实体验的效果。建议先完整跑完两份提示词、拿到全部产出之后，再回头翻 2.3～2.4 节对照。
 
 提示词里有几处用尖括号标记的占位符，需要你替换成自己机器上的实际信息：
@@ -321,10 +321,10 @@ sequenceDiagram
 - `<WORK_DIRECTORY>`：你在 Agent 里设置的当前工作目录
 - `<DIALOGS>.md（可以使用./ch02-0-dialogs.md）`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
 - `<COMMONS_CSV_REPO_PATH>（可以使用./commons-csv）`：你要分析、也要在上面新增测试的代码库源码目录路径，可以从 `https://github.com/apache/commons-csv` 克隆到本地，并保存到当前工作目录下的 `./commons-csv` 子目录下——**两份提示词用的是同一份工作副本**：热身阶段新增的 JUnit 5 测试会和你后续章节继续做的生产代码改动共存在这份副本里，这是预期行为，不需要为热身阶段单独准备一份"用完就扔"的副本
-- `<SCENARIOS_DOC_PATH>（可以使用./ch02-1-1-scenarios-for-warming-up.md）`：第一份热身提示词产出的"端到端测试场景清单"文档的相对路径（场景清单 + 挑出的代表性场景 + 场景↔测试方法对应表），第二份提示词会直接引用这份文件
-- `<DEBUG_GUIDE_DOC_PATH>（可以使用./ch02-1-2-debug-guide.md）`：第一份热身提示词产出的单步调试指南文档的相对路径
-- `<SUBDOMAINS_DOC_PATH>（可以使用./ch02-2-1-subdomains.md）`：第二份提示词产出的子域分析文档的相对路径
-- `<IMPACT_ANALYSIS_DOC_PATH>（可以使用./ch02-2-2-impact-analysis.md）`：第二份提示词产出的影响分析文档的相对路径
+- `<SCENARIOS_DOC_PATH>（可以使用./ch02-1-2-scenarios-for-warming-up.md）`：第一份热身提示词产出的"端到端测试场景清单"文档的相对路径（场景清单 + 挑出的代表性场景 + 场景↔测试方法对应表），第二份提示词会直接引用这份文件
+- `<DEBUG_GUIDE_DOC_PATH>（可以使用./ch02-1-3-debug-guide.md）`：第一份热身提示词产出的单步调试指南文档的相对路径
+- `<SUBDOMAINS_DOC_PATH>（可以使用./ch02-2-2-subdomains.md）`：第二份提示词产出的子域分析文档的相对路径
+- `<IMPACT_ANALYSIS_DOC_PATH>（可以使用./ch02-2-3-impact-analysis.md）`：第二份提示词产出的影响分析文档的相对路径
 
 既然 Agent 能够在你本地电脑上执行操作，那么推荐你在本地电脑为实操创建一个空目录，比如目录名可以叫 `<WORK_DIRECTORY>`；然后在终端里进入这个目录，并启动你常用的 Agent ，比如 OpenCode V2 ，并搭配你常用的大模型，比如 DeepSeek V4.1 Flash；之后就可以把已经替换好上述占位符的完整提示词依次复制给 Agent，开始实操。在"假设体检加追问"阶段，你能在这个目录中找到 Agent 生成的对话记录文件 `<DIALOGS>.md（可以使用./ch02-0-dialogs.md）` ，方便你查看，以及当 Agent 因故中断后能换一个 Agent 继续。
 
@@ -343,7 +343,7 @@ sequenceDiagram
 。请按照下面的要求完成任务，并在你每一次停下来等待我回复你的澄清问题时，将上一次追加前你我之间的完整对话（包括下面的Round 0）以markdown格式追加到
 
 ```
-<DIALOGS>.md（可以使用./ch02-0-dialogs.md）
+<DIALOGS>.md（可以使用./ch02-1-1-dialogs.md）
 ```
 
 文件（如果这个文件不存在，就新建）末尾，以便我在回复你的问题前仔细阅读。下面是要求：
@@ -422,7 +422,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 2. **列出"用来验证子域边界的端到端测试场景"**：基于你读到的源码和需求原文，列出一组典型的 CSV 文件处理端到端场景（数量不限，覆盖你认为有代表性的行为即可）。请把这份场景清单保存到：
 
 ```
-<SCENARIOS_DOC_PATH>（可以使用./ch02-1-1-scenarios-for-warming-up.md）
+<SCENARIOS_DOC_PATH>（可以使用./ch02-1-2-scenarios-for-warming-up.md）
 ```
 
 3. **挑出与需求原文相关的代表性场景**：在上一步的场景清单里，挑出若干和"表头/必需列"这件事直接相关、值得动手验证的代表性场景——比如"读取**无表头** CSV，按**下标**取值"、"读取**带表头** CSV（**自动探测**第一行为表头），按**列名**取值"、"手工指定**表头 + 跳过首行**"、"**重复列名 / 空列名**的容错处理"等，具体覆盖哪些、覆盖多少由你自行判断。把挑选结果和理由也写进上述场景清单（场景清单 + 挑出的代表性场景 + 场景↔测试方法对应表，三部分都要有）里。
@@ -438,7 +438,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 5. **产出单步调试指南**：仿照"先列出断点位置，再说明观察哪些变量、为什么"的方式，把每个测试用例的单步调试要点写成文档，开头给出可以直接复制执行的命令（运行全量测试、运行这批新增测试），正文每个测试用例一节，包含：这个测试对应生产代码里的关键断点位置（类名 + 行号 + 该行语句原文，方便你在 IDE 里直接定位）、值得观察的变量（变量名 + 为什么看这个变量能验证对应的行为）、以及（如果适用）将来 `required headers` 新需求的生产代码可以插入在哪个类的哪一行、为什么插在那里能满足"必须在读第一条记录之前报错"这个约束。文档末尾附一张"行号对照表"。请把这份文档保存到：
 
 ```
-<DEBUG_GUIDE_DOC_PATH>（可以使用./ch02-1-2-debug-guide.md）
+<DEBUG_GUIDE_DOC_PATH>（可以使用./ch02-1-3-debug-guide.md）
 ```
 
 ### 输出要求
@@ -515,7 +515,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 。请按照下面的要求完成任务，并在你每一次停下来等待我回复你的澄清问题时，将上一次追加前你我之间的完整对话（包括下面的Round 0）以markdown格式追加到
 
 ```
-<DIALOGS>.md（可以使用./ch02-0-dialogs.md）
+<DIALOGS>.md（可以使用./ch02-2-1-dialogs.md）
 ```
 
 文件（如果这个文件不存在，就新建）末尾，以便我在回复你的问题前仔细阅读。下面是要求：
@@ -577,13 +577,13 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 - **文档 SUBDOMAINS（子域识别）**：识别 commons-csv 代码库里的所有 subdomain，标注每个子域包含的 Java 类名、职责、对外接口、相互依赖关系，然后判断每个子域是 core / generic / supporting，并说明依赖关系与接口。请以markdown格式将上述文档 SUBDOMAINS 保存到以下文件中：
 
 ```
-<SUBDOMAINS_DOC_PATH>（可以使用./ch02-2-1-subdomains.md）
+<SUBDOMAINS_DOC_PATH>（可以使用./ch02-2-2-subdomains.md）
 ```
 
 - **文档 IMPACT_ANALYSIS（新需求影响分析）**：假设要在这个代码库上新增一个具体需求（需求原文见 4.6 ），分析这个需求会牵动哪些子域、哪些类，子域之间的接口会发生什么变化。请以markdown格式将上述文档 IMPACT_ANALYSIS 保存到以下文件中：
 
 ```
-<IMPACT_ANALYSIS_DOC_PATH>（可以使用./ch02-2-2-impact-analysis.md）
+<IMPACT_ANALYSIS_DOC_PATH>（可以使用./ch02-2-3-impact-analysis.md）
 ```
 
 这两份文档是用来帮我（以及其他和我一起培训的同学）熟悉这个陌生代码库的，所以**过程和依据比结论更重要**——请把"你是怎么判断出来的"写清楚，不要只给结论表格。
@@ -627,7 +627,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 （不需要重新设计一遍——请直接读取并引用之前"热身提示词"产出的
 
 ```
-<SCENARIOS_DOC_PATH>（可以使用./ch02-1-1-scenarios-for-warming-up.md）
+<SCENARIOS_DOC_PATH>（可以使用./ch02-1-2-scenarios-for-warming-up.md）
 ```
 
 这份文件里的场景清单，摘录/整理进本节；如果你是全新会话、还没有跑过"热身提示词"产出这份文件，请先完整执行热身提示词，拿到这份文件之后再回到这一步。在摘录的基础上，补充一段"这些场景分别落在哪些子域上"的交叉验证说明——这部分交叉验证是本节新增的分析，场景清单本身不用重新设计）
@@ -747,9 +747,9 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 
 </details>
 
-跑完整个流程后，把你的 Agent 产出的两份文档，和本章 2.3～2.4 节逐节对比——尤其关注 Round 0 阶段它对你的诉求提出了什么追问、有没有把"代码行数多"误判成"业务逻辑复杂"，以及"开放设计问题"这一节是否漏掉了某个需求原文没写清楚、但实际核查代码后才会发现的交互点（比如在`ch02-2-2-impact-analysis.md`的开放问题中，很多人直接假设两种 CSV 表头模式行为一致，却懒得去代码里确认）。下一章会把这些开放问题逐一裁决，并用决策表的方法推导出完整的验收测试用例。
+跑完整个流程后，把你的 Agent 产出的两份文档，和本章 2.3～2.4 节逐节对比——尤其关注 Round 0 阶段它对你的诉求提出了什么追问、有没有把"代码行数多"误判成"业务逻辑复杂"，以及"开放设计问题"这一节是否漏掉了某个需求原文没写清楚、但实际核查代码后才会发现的交互点（比如在`ch02-2-3-impact-analysis.md`的开放问题中，很多人直接假设两种 CSV 表头模式行为一致，却懒得去代码里确认）。下一章会把这些开放问题逐一裁决，并用决策表的方法推导出完整的验收测试用例。
 
-子域地图画清楚了，新需求该落在哪几个类也有了结论——但 `ch02-2-2-impact-analysis.md`留下的几个开放设计问题还悬在半空，不裁决就没法往下写验收测试。第三章会先用一份轻量 ADR 把这些问题逐一拍板，再用决策表测试法把裁决结果系统性地推导成一份不遗漏、不重复的验收测试用例清单，这是"设计"这一步要交付的东西。
+子域地图画清楚了，新需求该落在哪几个类也有了结论——但 `ch02-2-3-impact-analysis.md`留下的几个开放设计问题还悬在半空，不裁决就没法往下写验收测试。第三章会先用一份轻量 ADR 把这些问题逐一拍板，再用决策表测试法把裁决结果系统性地推导成一份不遗漏、不重复的验收测试用例清单，这是"设计"这一步要交付的东西。
 
 ---
 

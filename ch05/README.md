@@ -96,8 +96,8 @@ Agent 在动手设计方案之前，先做了一轮事实核查：它实际跑�
 
 问题前沿清空后，Agent 产出了两份文档：
 
-- **故障注入测试的3个方案**（`ch05-1-solutions-for-fault-injection.md`）：方案一"锚点字符串就地替换 + `git checkout` 还原"、方案二"上下文 unified-diff 补丁 + `git apply`/`git apply -R` 还原"、方案三"故障快照覆盖 + 工作副本字节还原"——三者的共同基础都是"源码就地改写+VCS还原"，区别只在注入和撤销故障这两步具体怎么做。三个方案共享同一份"故障字典"（每条故障记录生产代码位置、注入前/后代码、预期变红集合、期望报错片段）和同一套运行协议（跑全量测试→解析 surefire 报告拿到实际变红集合→和预期集合精确比对→撤销→确认复绿）。Agent 最终推荐**方案二**，理由逐条对应之前锁定的约束——比如"不改 `pom.xml`"这条约束，补丁方式天然满足，不需要额外基础设施。
-- **故障注入指南（`ch05-2-fault-injection-guide.md`）**：按故障点（而并非按测试用例）组织，最终收敛成 **10 个语义故障点**（FP-01 到 FP-09，含几个细分变体），每个故障点列出对应的生产代码类名+行号、注入前代码、注入后代码、实测报错信息，以及它会连带影响到哪些测试用例。
+- **故障注入测试的3个方案**（`ch05-2-solutions-for-fault-injection.md`）：方案一"锚点字符串就地替换 + `git checkout` 还原"、方案二"上下文 unified-diff 补丁 + `git apply`/`git apply -R` 还原"、方案三"故障快照覆盖 + 工作副本字节还原"——三者的共同基础都是"源码就地改写+VCS还原"，区别只在注入和撤销故障这两步具体怎么做。三个方案共享同一份"故障字典"（每条故障记录生产代码位置、注入前/后代码、预期变红集合、期望报错片段）和同一套运行协议（跑全量测试→解析 surefire 报告拿到实际变红集合→和预期集合精确比对→撤销→确认复绿）。Agent 最终推荐**方案二**，理由逐条对应之前锁定的约束——比如"不改 `pom.xml`"这条约束，补丁方式天然满足，不需要额外基础设施。
+- **故障注入指南（`ch05-3-fault-injection-guide.md`）**：按故障点（而并非按测试用例）组织，最终收敛成 **10 个语义故障点**（FP-01 到 FP-09，含几个细分变体），每个故障点列出对应的生产代码类名+行号、注入前代码、注入后代码、实测报错信息，以及它会连带影响到哪些测试用例。
 
 **生成了哪些测试代码和生产代码**：这一阶段没有改动任何生产代码（`CSVFormat.java`/`CSVParser.java` 保持不变），而是在代码库里新增了一套独立的故障注入工具链：`fault_spec.py`（11 条故障定义，单一事实源）、`gen.py`（校验故障锚点唯一、生成 unified-diff 补丁、渲染指南文档）、`check.py`（从测试报告里解析"实际变红集合"，和预期集合做精确比对，再逐条校验报错片段）、`run-fault-injection.sh`（editorial：preflight 检查工作区干净和基线全绿→逐条注入→跑测试→断言→撤销→复绿，并用 `trap` 保证 Ctrl-C 中断也能把源码还原干净），一共约 618 行。完整代码已公开在 [commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug](https://github.com/wubin28/commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug) 仓库的 [`8cf50930` 这次提交](https://github.com/wubin28/commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug/commit/8cf509308ba1263e28a870fb8207319e499f878f) 里。
 
@@ -129,8 +129,8 @@ Agent 产出的“故障注入指南”没有按"测试用例"一条一条地讲
 - `<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）`：commons-csv 代码库在本机的路径（推荐和上一章保持一致，即当前工作目录下的 `./commons-csv` 子目录）
 - `<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（即上一章的产出ch04-2-debug-guide-for-approved-scenarios.md））`：上一章动手练习中你自己产出的调试指南文档路径（里面应包含各测试对应的生产代码类名+行号+断点）
 - `<DECISION_TABLE_DOC_PATH>（即第 3 章的产出ch03-2-decision-tables.md）`：要做故障注入测试的验收测试范围参见第 3 章的 decision table 文档的“Step 7：把每条规则转成验收测试用例”
-- `<SOLUTIONS_FOR_FAULT_INJECTION_DOC_PATH>（可以使用./ch05-1-solutions-for-fault-injection.md）`：设计的 3 个故障注入方案及推荐方案的最终产出文档路径（里面应包含每个方案的主要内容、优势、劣势、适用场景、不适用场景，以及推荐方案的推荐理由）
-- `<FAULT_INJECTION_GUIDE_DOC_PATH>（可以使用./ch05-2-fault-injection-guide.md）`：最终产出的手工故障注入指南文档路径（里面应包含每条故障对应的生产代码类名+行号+注入前代码+注入后代码+注入后运行该测试时期望看到的报错信息）
+- `<SOLUTIONS_FOR_FAULT_INJECTION_DOC_PATH>（可以使用./ch05-2-solutions-for-fault-injection.md）`：设计的 3 个故障注入方案及推荐方案的最终产出文档路径（里面应包含每个方案的主要内容、优势、劣势、适用场景、不适用场景，以及推荐方案的推荐理由）
+- `<FAULT_INJECTION_GUIDE_DOC_PATH>（可以使用./ch05-3-fault-injection-guide.md）`：最终产出的手工故障注入指南文档路径（里面应包含每条故障对应的生产代码类名+行号+注入前代码+注入后代码+注入后运行该测试时期望看到的报错信息）
 - `<USAGE_SCOPE>`：这套故障注入设施的用途定位。示例："一次性验证/学习工具，不需要长期留在代码库里、不需要进 CI"
 - `<DIFFERENTIATION_DIMENSION>`：希望 3 个方案按什么维度区分（不填则由 Agent 自行建议并说明理由）。示例："按故障注入的实现机制区分"
 - `<IMPLEMENTATION_LANGUAGE>`：自动化脚本的实现语言偏好。示例："本机是 macOS iTerm2 zsh，优先 shell 脚本方案"
@@ -151,7 +151,7 @@ Agent 产出的“故障注入指南”没有按"测试用例"一条一条地讲
 。请按照下面的要求完成任务，并在你每一次停下来等待我回复你的澄清问题时，将上一次追加前你我之间的完整对话（包括下面的Round 0）以markdown格式追加到
 
 ```
-<DIALOGS>.md（可以使用./ch05-0-dialogs.md）
+<DIALOGS>.md（可以使用./ch05-1-dialogs.md）
 ```
 
 文件（如果这个文件不存在，就新建）末尾，以便我在回复你的问题前仔细阅读。下面是要求：
@@ -292,7 +292,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 请把 3 个备选方案以及你的一个推荐方案及其推荐理由的最终产出保存为一份 markdown 文件，路径为：
 
 ```
-<SOLUTIONS_FOR_FAULT_INJECTION_DOC_PATH>（可以使用./ch05-1-solutions-for-fault-injection.md）
+<SOLUTIONS_FOR_FAULT_INJECTION_DOC_PATH>（可以使用./ch05-2-solutions-for-fault-injection.md）
 ```
 
 。文件结构必须是：每个方案一节（主要内容/优势/至少3条/劣势/至少2条/适用场景/不适用场景），最后一节"推荐方案"逐条对应"背景与已确认的前提"里的具体决策给出理由。
@@ -311,7 +311,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 方案确定后，请按推荐方案实现自动化脚本，并产出手工故障注入指南（
 
 ```
-<FAULT_INJECTION_GUIDE_DOC_PATH>（可以使用./ch05-2-fault-injection-guide.md）
+<FAULT_INJECTION_GUIDE_DOC_PATH>（可以使用./ch05-3-fault-injection-guide.md）
 ```
 
 ）——每条包含生产代码的类名+行号、注入前代码、注入后代码、注入后运行该测试时期望看到的报错信息。如果某个故障注入后测试依然是绿的，请如实说明"为什么这个故障不会让测试变红"，不要隐瞒或者悄悄换一个更容易触发失败的故障。
