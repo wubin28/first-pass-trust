@@ -123,11 +123,11 @@ Round 0 阶段 Agent 先按决策表文档的汇总表估算出"12 条规则 / �
 使用前请把下面的占位符替换成你自己的实际信息（若某个占位符你暂时没有答案，可以保留原样，提示词里已经写了兜底规则）：
 
 - `<CURRENT_DIRECTORY>`：你在 Agent 里设置的当前工作目录
-- `<DIALOGS>.md`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
-- `<COMMONS_CSV_REPO_PATH>` ：你要分析的代码库源码目录路径，可以从 `https://github.com/apache/commons-csv` 克隆到本地
-- `<DECISION_TABLE_DOC_PATH>` ： 决策表文档的相对路径
-- `<SOLUTIONS_DOC_PATH>` ： 方案设计文档的相对路径
-- `<DEBUG_GUIDE_DOC_PATH>` ： 调试指南文档的相对路径
+- `<DIALOGS>.md（可以使用./ch04-0-dialogs.md）`：保存你和 Agent 之间对话记录的文件路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
+- `<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）` ：commons-csv 代码库在本机的路径（推荐和上一章保持一致，即当前工作目录下的 `./commons-csv` 子目录）
+- `<DECISION_TABLE_DOC_PATH>（即上一章的产出./ch03-2-decision-tables.md）` ： 上一章产出的决策表文档的相对路径
+- `<SOLUTIONS_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-1-solutions-for-approved-scenarios.md）` ： 方案设计文档的相对路径
+- `<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-2-debug-guide-for-approved-scenarios.md）` ： 调试指南文档的相对路径
 
 推荐你在上一章为实操创建的目录中继续本章的实操。
 
@@ -146,7 +146,7 @@ Round 0 阶段 Agent 先按决策表文档的汇总表估算出"12 条规则 / �
 。请按照下面的要求完成任务，并在你每一次停下来等待我回复你的澄清问题时，将上一次追加前你我之间的完整对话（包括下面的Round 0）以markdown格式追加到
 
 ```
-<DIALOGS>.md
+<DIALOGS>.md（可以使用./ch04-0-dialogs.md）
 ```
 
 文件（如果这个文件不存在，就新建）末尾，以便我在回复你的问题前仔细阅读。下面是要求：
@@ -204,7 +204,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 - 目标代码库：
 
 ```
-<COMMONS_CSV_REPO_PATH>
+<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）
 ```
 
 这是一个标准 Maven 项目（Apache Commons CSV），`pom.xml` 已引入 `org.junit.jupiter:junit-jupiter`（JUnit 5）。**不要凭空假设代码库里任何类的字段/方法/默认值——必须实际打开源码文件核实**，具体要核实什么见下面「阶段 A 的必做勘查」。
@@ -215,7 +215,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 - 验收测试用例的**设计**已经由决策表方法完成，不需要你重新设计测试用例本身，你的任务是把它们**转化为可执行代码**。这些用例在
 
 ```
-<DECISION_TABLE_DOC_PATH>
+<DECISION_TABLE_DOC_PATH>（即上一章的产出./ch03-2-decision-tables.md）
 ```
 
 文档的"Step 7：将规则转换为测试用例"章节里，通常以"前置条件 / 测试数据 / 预期结果"的结构逐条列出。
@@ -237,8 +237,8 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 
 #### A1. 必做的环境/代码勘查（不要跳过，不要假设）
 
-1. 确认 `<COMMONS_CSV_REPO_PATH>` 是否已经是一个可用的 git 工作副本；如果需要先 clone，执行 clone。
-2. 读 `<DECISION_TABLE_DOC_PATH>` 的"Step 7"章节，数清楚总共有多少条验收测试用例，记下每条用例的前置条件/测试数据/预期结果。如果该章节之前还有"决策表类型选择""条件/规则/动作"等章节，通读一遍以理解每条用例背后的业务规则。
+1. 确认 `<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）` 是否已经是一个可用的 git 工作副本；如果需要先 clone，执行 clone。
+2. 读 `<DECISION_TABLE_DOC_PATH>（即上一章的产出./ch03-2-decision-tables.md）` 的"Step 7"章节，数清楚总共有多少条验收测试用例，记下每条用例的前置条件/测试数据/预期结果。如果该章节之前还有"决策表类型选择""条件/规则/动作"等章节，通读一遍以理解每条用例背后的业务规则。
 3. 在代码库里搜索与上述需求原文相关的现有字段、方法、校验逻辑——即使这个功能"尚未实现"，也要找到**最合理的插入点**（比如现有的构造期校验方法、现有的解析期表头处理方法），并记录下具体的类名和当前行号。
 4. 搜索代码库里 `src/test/resources` 一类目录下是否已经存在类似"approved/golden file"的测试模式先例；如果有，优先复用已有约定；如果没有，说明这是全新引入。
 5. 检查本机开发环境（如果你有权限执行命令）：IDE 的 Java 调试/测试相关扩展是否已安装，版本是多少。
@@ -253,7 +253,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 把这份方案设计文档保存为 
 
 ```
-<SOLUTIONS_DOC_PATH>
+<SOLUTIONS_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-1-solutions-for-approved-scenarios.md）
 ```
 
 ### 阶段 B：按推荐方案实现
@@ -266,7 +266,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 6. **产出调试指南文档**（
 
 ```
-<DEBUG_GUIDE_DOC_PATH>
+<DEBUG_GUIDE_FOR_APPROVED_SCENARIOS_DOC_PATH>（可以使用./ch04-2-debug-guide-for-approved-scenarios.md）
 ```
 
 ），结构参考：打开仓库文件夹后 Testing 面板怎么用、每一条验收测试用例一节（断点：类名+行号+这一行代码内容；观察变量：变量名+预期值+为什么能验证对应规则）、测试执行逻辑本身的 1~3 个关键断点、最后附一张"行号对照表"。

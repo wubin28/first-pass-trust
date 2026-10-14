@@ -2,19 +2,19 @@
 
 # 第三章 设计面向验收测试的 Spec
 
-按照本章后面的提示词在你自己的 Agent 上实操一遍后，你将学会用 ADR 裁决需求里没讲清楚的开放设计问题，再用决策表测试法系统性地推导出一份不遗漏、不重复的验收测试用例清单。
+按照本章后面的提示词在你自己的 Agent 上实操一遍后，你将学会用 [ADR](https://adr.github.io/)（Architecture Decision Record）裁决需求里没讲清楚的开放设计问题，再用决策表测试法系统性地推导出一份不遗漏、不重复的验收测试用例清单。
 
 在让 Agent 针对新需求生成生产代码之前，如何判断 Agent 生成的验收测试用例能全面覆盖新需求的业务且没有遗漏和重复？
 
-第二章的影响分析已经确定了改动会落在哪些类，也留下了 5 个开放设计问题没有裁决。本章要做两件事：先用轻量的 [ADR](https://adr.github.io/)（Architecture Decision Record）把这些开放问题逐一裁决，再用 [Decision Table Testing](https://www.virtuosoqa.com/post/decision-table-testing)（决策表测试法）把裁决结果系统性地推导成一份不遗漏、不重复的验收测试用例清单。
+第二章的影响分析已经确定了改动会落在哪些类，也留下了 6 个开放设计问题没有裁决。本章要做两件事：先用轻量的 ADR 把这些开放问题逐一裁决，再用 [Decision Table Testing](https://www.virtuosoqa.com/post/decision-table-testing)（决策表测试法）把裁决结果系统性地推导成一份不遗漏、不重复的验收测试用例清单。
 
-如果你想真正检验自己有没有吃透决策表的推导逻辑，不妨先通读一遍本章，再把本章末尾的提示词复制给你的 Agent，让它独立跑一遍同样的 ADR 裁决和决策表推导，然后拿它的产出和本章逐条对比——规则数、测试用例数对不上的地方，往往就是你（或它）漏看了某个条件依赖关系的信号。
+如果你想真正检验自己有没有吃透决策表的推导逻辑，不妨先快速浏览一遍本章，再把本章末尾的提示词复制给你的 Agent，让它独立跑一遍同样的 ADR 裁决和决策表推导，然后拿它的产出和本章逐条对比——出现规则数、测试用例数对不上的地方很正常，此时需要用你的判断力来分析和取舍。
 
 > [!TIP]
 > **TL;DR · 读完本章你会：**
-> - 看到第二章留下的 5 个开放设计问题，如何用一份轻量 ADR 逐条裁决、每条决策都能追溯到具体代码证据；
+> - 看到第二章留下的 6 个开放设计问题，如何用一份轻量 ADR 逐条裁决、每条决策都能追溯到具体代码证据；
 > - 学会决策表测试法的七步推导流程：识别条件 → 定义取值 → 计算规则数 → 识别动作 → 填充 → 化简 → 转为测试用例；
-> - 看到真实案例——`required headers` 需求最终被拆成 3 张小表、11 条规则、17 个验收测试用例；
+> - 看到真实案例——`required headers` 需求最终被拆成 3 张小表、12 条规则、27 个验收测试用例；
 > - 理解为什么"条件之间会互相影响"（比如大小写敏感性依赖另一个条件）正是决策表要系统处理的典型场景，而非简单的独立二元判断。
 
 <a id="ch3-toc"></a>
@@ -123,13 +123,13 @@ Agent 产出的 ADR 文档（`ch03-1-adr.md`）一共裁决了 10 条决策（D1
 
 使用前请把下面三处占位符替换成你自己的实际信息：
 
-- `<CURRENT_DIRECTORY>`（你在 Agent 里设置的当前工作目录）
-- `<DIALOGS>.md`（保存你和 Agent 之间对话记录的相对路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续）
-- `<SUBDOMAINS_DOC_PATH>`——子域分析文档的相对路径（如果你做了第二章的动手练习，这里可以填你自己产出的文档 A 路径；没有就留空，不影响任务完成）
-- `<IMPACT_ANALYSIS_DOC_PATH>`——影响分析文档的相对路径（同理，可以填你自己产出的文档 B 路径）
-- `<COMMONS_CSV_REPO_PATH>`——commons-csv 代码库在本机的路径（你要分析的代码库源码目录路径，可以从 `https://github.com/apache/commons-csv` 克隆到本地）
-- `<ADR_DOC_PATH>`——架构决策记录（ADR）文档的相对路径
-- `<DECISION_TABLE_DOC_PATH>`——决策表文档的相对路径
+- `<CURRENT_DIRECTORY>`：你在 Agent 里设置的当前工作目录
+- `<DIALOGS>.md（可以使用./ch03-0-dialogs.md）`：保存你和 Agent 之间对话记录的相对路径，已备 Agent 因为 LLM 服务暂时不可用等种种原因中断时能切换到其他 Agent 继续
+- `<SUBDOMAINS_DOC_PATH>（即上一章的产出./ch02-2-1-subdomains.md）`：子域分析文档的相对路径
+- `<IMPACT_ANALYSIS_DOC_PATH>（即上一章的产出./ch02-2-2-impact-analysis.md）`：影响分析文档的相对路径
+- `<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）`：commons-csv 代码库在本机的路径（推荐和上一章保持一致，即当前工作目录下的 `./commons-csv` 子目录）
+- `<ADR_DOC_PATH>（可以使用./ch03-1-adr.md）`：架构决策记录（ADR）文档的相对路径
+- `<DECISION_TABLE_DOC_PATH>（可以使用./ch03-2-decision-tables.md）`：决策表文档的相对路径
 
 推荐你在上一章为实操创建的目录中继续本章的实操。
 
@@ -148,7 +148,7 @@ Agent 产出的 ADR 文档（`ch03-1-adr.md`）一共裁决了 10 条决策（D1
 。请按照下面的要求完成任务，并在你每一次停下来等待我回复你的澄清问题时，将上一次追加前你我之间的完整对话（包括下面的Round 0）以markdown格式追加到
 
 ```
-<DIALOGS>.md
+<DIALOGS>.md（可以使用./ch03-0-dialogs.md）
 ```
 
 文件（如果这个文件不存在，就新建）末尾，以便我在回复你的问题前仔细阅读。下面是要求：
@@ -209,13 +209,13 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 
 - 子域分析文档：
 ```
-<SUBDOMAINS_DOC_PATH>.md
+<SUBDOMAINS_DOC_PATH>（即上一章的产出./ch02-2-1-subdomains.md）
 ```
 （如果存在，阅读它以了解 CSVFormat / CSVParser / CSVRecord / Lexer 等类在这个代码库里分别承担什么职责，哪些是"核心业务逻辑"，哪些是"支撑性配置"）
 
 - 影响分析文档：
 ```
-<IMPACT_ANALYSIS_DOC_PATH>
+<IMPACT_ANALYSIS_DOC_PATH>（即上一章的产出./ch02-2-2-impact-analysis.md）
 ```
 （如果存在，阅读它以了解这次新需求会牵动哪些类、哪些类不受影响）
 
@@ -226,7 +226,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 本机路径：
 
 ```
-<COMMONS_CSV_REPO_PATH>
+<COMMONS_CSV_REPO_PATH>（即上一章使用的./commons-csv）
 ```
 
 把仓库克隆到你当前的工作目录下，然后在克隆下来的副本里做下面的"代码核查"。
@@ -274,7 +274,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 **产出文件**：把这份 ADR 保存为当前工作目录下的
 
 ```
-<ADR_DOC_PATH>.md
+<ADR_DOC_PATH>（可以使用./ch03-1-adr.md）
 ```
 
 （Markdown 格式），结构建议：
@@ -298,7 +298,7 @@ Round 0 只问上述这一个问题，不要提前问别的。我回答后，你
 **产出文件**：把这份决策表和测试用例保存为当前工作目录下的
 
 ```
-<DECISION_TABLE_DOC_PATH>.md
+<DECISION_TABLE_DOC_PATH>（可以使用./ch03-2-decision-tables.md）
 ```
 （Markdown 格式），结构建议：
 - 开头一段：决策表类型选择与理由，以及（如果拆成多张表）各表之间关系的说明图/说明文字
@@ -454,7 +454,7 @@ These techniques are complementary. Equivalence partitioning reduces continuous 
 
 </details>
 
-跑完之后，数一数你的 Agent 推导出多少条规则、多少个测试用例，和本章的 11 条规则、11 个测试用例对比——如果数字差异很大，回头看看是否漏掉了某个条件之间的依赖关系，或者把本该合并的等价类拆成了多条规则。
+跑完之后，数一数你的 Agent 推导出多少条规则、多少个测试用例，和本章的 12 条规则、11 个测试用例对比——如果数字差异很大，回头看看是否漏掉了某个条件之间的依赖关系，或者把本该合并的等价类拆成了多条规则。
 
 验收测试用例清单推导出来了，但它们目前还只是文档里的表格，离"能跑起来、能保护代码"还差一步。第四章会把这份清单落地成真正可执行的自动化验收测试——用 Approved Scenarios 模式，让每条用例对应一份产品经理也能读懂的 markdown fixture，再配合 TDD 的红绿重构节奏，把生产代码补齐到能让这些测试全部通过，这是"构建"这一步要交付的东西。
 
