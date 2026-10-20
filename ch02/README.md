@@ -201,21 +201,21 @@ graph TD
     classDef supporting fill:#e0ecff,stroke:#06c;
     classDef generic fill:#f0f0f0,stroke:#888,stroke-dasharray:4 2;
 
-    SD1["① 格式契约 (Core)"]
-    SD2["② 解析编排与表头/记录语义 (Core)"]
-    SD3["③ 词法读取机制 (Generic)"]
-    SD4["④ 格式写出编排 (Supporting)"]
-    SD5["⑤ 错误词汇 (Supporting)"]
+    DOM1["① 格式契约 (Core)"]
+    DOM2["② 解析编排与表头/记录语义 (Core)"]
+    DOM3["③ 词法读取机制 (Generic)"]
+    DOM4["④ 格式写出编排 (Supporting)"]
+    DOM5["⑤ 错误词汇 (Supporting)"]
 
-    SD1 -->|"只读配置：delimiter/quote/nullString/header[]/duplicateHeaderMode 等 getter"| SD2
-    SD1 -->|"值级序列化规则：print()/println()"| SD4
-    SD2 -->|"nextToken()/Token 流 + reader 状态查询"| SD3
-    SD3 -.->|"CSVException（词法级坏输入）"| SD5
-    SD2 -.->|"CSVException（INVALID token 等）"| SD5
+    DOM1 -->|"只读配置：delimiter/quote/nullString/header[]/duplicateHeaderMode 等 getter"| DOM2
+    DOM1 -->|"值级序列化规则：print()/println()"| DOM4
+    DOM2 -->|"nextToken()/Token 流 + reader 状态查询"| DOM3
+    DOM3 -.->|"CSVException（词法级坏输入）"| DOM5
+    DOM2 -.->|"CSVException（INVALID token 等）"| DOM5
 
-    class SD1,SD2 core
-    class SD3 generic
-    class SD4,SD5 supporting
+    class DOM1,DOM2 core
+    class DOM3 generic
+    class DOM4,DOM5 supporting
 ```
 
 热身阶段测试代码的可信度，是我靠"真的跑 `mvn test`"兑现的：18 个新测试一次性全绿，没有出现断言和实测不符的情况；但设计这批测试时确实有一次"预判偏差"——我最初以为重复表头的校验只有一个时机，实测发现手工表头在 `builder.get()`（配置期）就会抛，文件表头要等到 `format.parse()`（读入期）才抛。这个偏差被 `C1a`/`C1b` 两个测试分别钉住，而并非笼统合并成一条断言，也原样记录进了调试指南的"真实踩坑记录"一节。
