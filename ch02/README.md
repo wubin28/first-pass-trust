@@ -12,7 +12,7 @@
 > **TL;DR · 读完本章你会：**
 > - 学会先用单步调试代码库里现有的自动化验收测试，亲眼核实 AI 讲的代码行为是不是真的在代码里发生；
 > - 学会用 DDD strategic design 把一个陌生棕地代码库拆成 core / generic / supporting 子域，分清哪里值得细读、哪里扫一眼接口就够；
-> - 看到这套方法套在 `commons-csv` 上的真实判定结果——格式规则与不变式、记录读入与解析是 core，格式配置与预定义方言、记录写出与生成是 supporting，字符流缓冲与字节跟踪、基础设施与错误契约是 generic；
+> - 看到这套方法套在 `commons-csv` 上的真实判定结果——格式契约、解析编排与表头/记录语义是 core，词法读取机制是 generic，格式写出编排、错误词汇是 supporting；
 > - 学会识别"代码行数大≠业务逻辑复杂"这个最容易踩的坑；
 > - 看到 `required headers` 新需求如何被精确定位到该落脚的子域和类，而非凭直觉改动。
 
@@ -24,32 +24,32 @@
 ## 2.1 热身阶段单步调试指南：用现有行为的测试理解 commons-csv
 
 > [!NOTE]
-> 本节内容对应困境二——AI 讲的架构、时序图听起来很有道理，但哪些是真的在代码里发生的，光听转述说不清。在正式用 DDD strategic design 拆子域之前，先亲手单步调试一遍代码库里现有的验收测试，把"听 AI 说"换成"亲眼看代码真的怎么跑"。下面并非 Agent 产出文档的全文，而是我把本章 2.5 节的"热身提示词"发给 OpenCode V2 搭配 DeepSeek V4.1 Flash 之后，真实发生的问答过程、产出清单与可信度验证方式的复盘。建议你先快速浏览完这一节，再去跑 2.5 的提示词，跑完回来对照看看你的 Agent 给出的问题和产出有什么不同——我不会在这里重复讲 commons-csv 的内部实现，因为那样会搅乱你自己跑提示词后理解 Agent 与你的互动以及所生成的文档时的亲身体验。
+> 本节内容对应困境二——AI 讲的架构、时序图听起来很有道理，但哪些是真的在代码里发生的，光听转述说不清。在正式用 DDD strategic design 拆子域之前，先亲手单步调试一遍代码库里现有的验收测试，把"听 AI 说"换成"亲眼看代码真的怎么跑"。下面并非 Agent 产出文档的全文，而是我把本章 2.5 节的"热身提示词"发给 OpenCode V2 搭配 GLM 5.3 之后，真实发生的问答过程、产出清单与可信度验证方式的复盘。建议你先快速浏览完这一节，再去跑 2.5 的提示词，跑完回来对照看看你的 Agent 给出的问题和产出有什么不同——我不会在这里重复讲 commons-csv 的内部实现，因为那样会搅乱你自己跑提示词后理解 Agent 与你的互动以及所生成的文档时的亲身体验。
 
 ### 过程：Agent 问了什么，我怎么答的
 
-第一份热身提示词一发出去，Agent 先做了一轮环境核查（grep 确认 `setRequiredHeaders`/`RequiredHeader` 相关符号全库不存在、确认没有现成的 `kata` 子包、记录 JDK 21/Maven 3.9.16 和 `pom.xml` 里 `source/target=1.8` 的编译级别、确认工作目录是空的），然后只问了 Round 0 的一个问题：**这次热身到底是"为后续 TDD 铺路"、"为 DDD 分析积累业务手感"，还是"纯粹自己探险"**——这三种用途会让它选哪些场景、写多细的测试得出相反的结论。它自己给的默认推荐是"(a) 铺路为主、(b) 手感为辅"，我同意了这个选择方向，但没有照单全收它推荐里夹带的两个具体做法：它建议用 `git worktree` 克隆代码库以免污染源仓库，**我要求改成普通 `git clone`**；它还建议测试类"英文命名 + 中文注释"，**我要求全部按 Apache 项目惯例走（英文命名 + 英文注释）**，中文只留给最终产出的两份 markdown 文档。
+热身提示词一发出去，Agent 先自己核查了一轮事实（确认工作目录下已有 `./commons-csv`，HEAD 和源仓库一致、工作区干净；记录 JDK 21/Maven 3.9.16 和 `pom.xml` 里 `source/target=1.8` 的编译级别；后台启动全量基线测试），然后只问了 Round 0 的一个问题：**这三份产出到底是我自己的工作底稿，还是可以直接进书/课程章节的素材**——这决定了篇幅取舍、要不要为陌生读者解释背景、踩坑要不要提炼成"读者也会踩的坑"。它给了三个选项——纯自用底稿、章节素材、两者兼顾——自己推荐"兼顾"：证据先行（每个结论都有源码行号/测试输出背书），但不为了教学美观删减或润色掉真实发生的细节。我同意了这个选择。
 
-前沿（frontier，由开发者 Matt Pocock 在风靡一时的[“grill-me”](https://github.com/mattpocock/skills/blob/main/skills/productivity/grilling/SKILL.md) skill 中创造的术语，指 Agent 澄清你的所求时当下最应该追问的问题列表，而并非那些需要依赖这些问题的答案才能往下问的后续问题，本书的“假设体检加追问”提示词参考了这一思路）打开后，Agent 一次性抛出 5 个问题：覆盖深度要到什么程度（它给了"最小集合/中等/穷尽"三档，建议中等——在需求原文点名的场景之外，再覆盖 `DuplicateHeaderMode` 三种取值、大小写不敏感、缺名容忍这些"默认值差异"）、是否要专门写一个"固化现状失败模式"的特征测试（断言 `record.get("currency")` 今天会怎么报错，作为后续 TDD 的红色基线）、调试指南写多细（自用 vs 兼顾未来读者）、"踩坑记录"放在哪个文件、以及克隆基线和改动要不要提交。我基本都同意了它的建议：覆盖深度选中等档、包含失败模式特征测试、调试指南按"自用可跑 + 兼顾未来读者"的标准写、踩坑记录并入调试指南末尾单开一节、新测试只留在工作区不提交。
+这轮回复里我还确认了几件事：这批特征测试将来要当"不可变的回归安全网"（而非允许被后续新功能有意改写）；场景只覆盖"表头/列名/取值"这条主线，不铺开到分隔符/引号/转义等格式解析行为；全量基线我自己已经验证过是全绿的；本机 JDK/Maven 版本是否兼容，让 Agent 自己去查。
 
-和这一步并行，Agent 派了一个子代理去实地核查 `CSVFormat`/`CSVParser`/`CSVRecord`/`DuplicateHeaderMode` 的源码，取回精确行号和异常消息原文——这些事实收集不需要我回答，但报告回来后纠正了它自己此前问题里的一处疏漏：原来 Q1 选项里提到的 `getHeaderCount()` 之类的 API 其实根本不存在，它主动把这条从候选观察面里删掉，换成实测确认存在的 `getHeaderNames()`/`getHeaderMap()`/`isMapped(String)` 等。
+确认这些之后，Agent 补上它自己查到的事实（构建兼容性、`createHeaders()` 的精确行号、`DuplicateHeaderMode` 的三个取值等），一次性抛出 5 个问题：12 个代表性场景要不要增删、测试代码该用单文件 4 个 `@Nested` 分组还是拆成多个文件、踩坑记录放在调试指南末尾还是单独开文件、`setRequiredHeaders` 未来插入点的分析要不要摆出多个候选再对比、异常断言要精确到消息全文还是只断言类型 + 关键片段。这 5 个问题我都同意了它的建议——没有像子域分析那样出现需要我纠正的地方，这一轮走得比较顺。
 
 ### 产出：场景清单、调试指南、18 个特征测试
 
 问题前沿清空后，Agent 产出了两份文档：
 
-- **场景清单**（`ch02-1-2-scenarios-for-warming-up.md`）：先列出 35 个宽口径的 CSV 处理场景（S01～S35，覆盖表头来源、表头校验、按名/按下标取值、以及一组本轮有意不覆盖的其它行为），再从中挑出 19 个和"表头/必需列"直接相关的代表性场景并写明理由，最后给出场景与测试方法的对应表。
-- **调试指南**（`ch02-1-3-debug-guide.md`）：开头给出复制即用的命令，正文按测试类（`HeaderResolutionTest`/`HeaderValidationTest`/`HeaderLookupTest`）逐个测试方法给出断点位置（类名+行号+该行代码）、要观察的变量、以及这个变量为什么能验证对应行为，并专门分析了 `setRequiredHeaders` 未来最合适的插入点——`CSVParser.createHeaders()` 返回之前（`CSVParser.java:682` 之前），因为此时 `headerMap` 已经完整建好，而这段代码又在构造函数（`CSVParser.java:528`）里被同步调用，天然满足"必须在读第一条记录之前报错"的约束。文末附一张行号对照表和一节"实测踩坑记录"。
+- **场景清单**（`ch02-1-2-scenarios-for-warming-up.md`）：列出 21 个和表头/必需列相关的场景（12 个会真的写测试、9 个只记录不测），按表头来源、按名取值边界、重复/空白列名、required 匹配语义相关的边界情况四组归类，并给出场景与测试方法的对应表。
+- **调试指南**（`ch02-1-3-debug-guide.md`）：开头给出复制即用的命令，正文按测试类的 4 个 `@Nested` 分组逐个测试方法给出断点位置（类名+行号+该行代码）、要观察的变量、以及这个变量为什么能验证对应行为；第 3 节专门列了 3 个候选插入点（`CSVFormat.validate()`、`CSVParser.createHeaders()` 内、`CSVParser` 构造函数内）逐一对比，推荐落在 `CSVParser.createHeaders()` 末尾、`return new Headers(...)` 之前（`CSVParser.java:682` 之前）——这里是表头三种来源（无表头、自动探测、手工指定）唯一的汇合点，又天然在任何数据记录被读取之前执行。文末附一张行号对照表和一节"真实踩坑记录"（P1 到 P8）。
 
-这两份文档背后是真实写出并跑通的测试代码：`kata` 包下新增 3 个 JUnit 5 特征测试类——`HeaderResolutionTest`（6 个方法）、`HeaderValidationTest`（8 个方法）、`HeaderLookupTest`（4 个方法），共 18 个 `@Test`，435 行，已经公开在 [`commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug) 仓库的提交 [`7da9dc74`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug/commit/7da9dc74ef9a051de87aa00b229852e2aa0f0ba9) 里。这些测试只验证 commons-csv **今天已有**的行为，故意不实现 `setRequiredHeaders`——那是留给后面章节做 TDD 的事。
+这两份文档背后是真实写出并跑通的测试代码：`kata` 包下新增 1 个 JUnit 5 特征测试类 `HeadersCharacterizationTest`，内含 4 个 `@Nested` 分组——`HeaderSources`（6 个方法）、`NameAccessBoundaries`（5 个方法）、`DuplicateAndBlankHeaders`（5 个方法）、`RequirementAdjacent`（2 个方法）——共 18 个 `@Test`，282 行，已经公开在 [`commons-csv-by-opencode-v2-with-glm-5.3`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-glm-5.3) 仓库的提交 [`24562da2`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-glm-5.3/commit/24562da2fff56fefd61ec8f6ce352632fb301957) 里。这些测试只验证 commons-csv **今天已有**的行为，故意不实现 `setRequiredHeaders`——那是留给后面章节做 TDD 的事。
 
 ### 可信怎么实现的
 
-这批测试和两份文档的可信度并非靠"读起来像专业文档"，而是靠一件可以直接复核的事：**18 个测试第一次跑的时候，有 3 个直接断言失败**——以为表头被消费后数据记录编号该从 2 开始，实测仍是 1；以为允许缺名列时空列名会被跳过，实测它照样被写进了映射（`headerMap` size 是 2 并非 1）；还有一处是关于 `DuplicateHeaderMode` 的"默认值陷阱"——`CSVFormat.DEFAULT`/`EXCEL` 的默认值 `ALLOW_ALL` 并非枚举或字段本身的 Java 默认值，而是 `CSVFormat.Builder.create()` 里显式设置出来的，换一条构造路径（`new Builder()`）就会变成等效于 `DISALLOW`。这些"我以为会这样、实测却打脸"的坑，都被原样记录进调试指南的"实测踩坑记录"一节，而并非悄悄把断言改对了就当没发生过。全量 `mvn test` 跑出 **1003 个测试、0 失败、0 错误、11 跳过**，这个数字本身也是可以在你自己的环境里重新跑一遍去验证的。
+这批测试和两份文档的可信度并非靠"读起来像专业文档"，而是靠几件可以直接复核的事：**18 个测试一次全绿，没有出现断言和实测打脸的情况**——这一点和我自己原本设想"热身总会撞上几次预期落空"不太一样；但设计阶段确实有一次"预判偏差"：我最初以为重复表头的校验只有一个时机，而实测发现手工表头在 `builder.get()`（配置期）就会抛，文件表头要等到 `format.parse()`（读入期）才抛——这个偏差被 `C1a`/`C1b` 两个测试分别钉住，而并非笼统合并成一条断言。另外几个真实踩过的坑：用 `-Dtest` 过滤 `@Nested` 分组时，外层类那一行会显示"Tests run: 0"，乍看像没跑到测试，实际要看最后 `Results:` 的汇总；空文件加自动探测表头时，`headerMap` 是一个空 Map 而非 `null`，如果新校验只判 `null` 会漏掉这种"全缺"的边界情况。这些坑都被原样记录进调试指南的"真实踩坑记录"一节。全量 `mvn test` 从基线 **985 个测试**跑到 **1003 个、0 失败、0 错误、11 跳过**，这个数字本身也是可以在你自己的环境里重新跑一遍去验证的。
 
 ### 是否一把过
 
-并非一次发出去就什么都对，但也没有真正的推倒重来。一个 Round 0 问题加 5 个编号问题，一轮就问完、前沿清空；真正动手之后唯一的"返工"（只是 Agent 在后台干活儿时默默自动小批量返工，并不是实操者手动从头返工），是 3 处测试断言被实测结果纠正——这些纠正都发生在"写完测试、第一次跑"的阶段，改的是断言本身（因为最初的预期是错的），并非推翻已经写好的测试结构重新设计。两处我主动否决 Agent 默认推荐的地方（克隆方式、命名风格），也是在 Round 0 一次性定下来的，没有产生后续返工。
+这一次我的体会是比子域分析那一轮更顺：一个 Round 0 问题加 5 个编号问题，一轮就问完、前沿清空，而且我没有否决 Agent 的任何一条默认假设或建议。真正动手之后也没有出现"测试断言被实测结果打脸、需要回头改"的情况——18 个测试第一次跑就全绿。唯一能算"返工"的，是设计阶段那次"预判重复表头校验只有一个时机"的偏差，但那是在写测试之前被发现、直接写成两个分别命中两个时机的测试用例，并非先写错了再推翻重做。
 
 <a id="ch2-2"></a>
 
@@ -102,32 +102,28 @@ strategic design 原本是为公司和团队设计的分析工具，用在一个
 ## 2.3 识别核心、通用与支撑子域
 
 > [!NOTE]
-> 从这里到本章"动手练习提示词"之间所展示的内容，就是我在添加新功能之前“理解代码所承载的复杂业务逻辑”时与 OpenCode V2 搭配 DeepSeek V4.1 Flash 用"假设体检 + 追问"提示词共创出来的过程与产出要点（原产出内容较长，你应该没有耐心读完，所以这里只展示精华）。你可以先快速浏览，然后复制本章后半部分的[动手练习提示词](#ch2-hands-on)给你的 Agent ，自己动手跑一遍，再回来和本章上述所展示的内容对比复盘，看看自己的产出有什么差异、这些差异是否合理。
+> 从这里到本章"动手练习提示词"之间所展示的内容，就是我在添加新功能之前“理解代码所承载的复杂业务逻辑”时与 OpenCode V2 搭配 GLM 5.3 用"假设体检 + 追问"提示词共创出来的过程与产出要点（原产出内容较长，你应该没有耐心读完，所以这里只展示精华）。你可以先快速浏览，然后复制本章后半部分的[动手练习提示词](#ch2-hands-on)给你的 Agent ，自己动手跑一遍，再回来和本章上述所展示的内容对比复盘，看看自己的产出有什么差异、这些差异是否合理。
 
 > [!IMPORTANT]
 > 上述本章所展示的内容，都经过我本人验证。由于大模型的不确定性，你把本章末尾的"动手练习提示词"发给自己常用的 Agent 和大模型组合后，会看到不完全相同的产出——这是很正常的现象。所以上述展示的内容，仅供你参考，而并非唯一答案。条条大路通罗马，解决问题的答案会有很多种。只要你理解了这份经过评审的参考结果背后的底层逻辑，再带着这份理解去评判你的 Agent 产出是否做到了"让 Agent 一次生成可信代码"，就已经能在亲身实践中有所收获。后面章节的动手实操参考内容的性质类同，不再赘述。
 
 ### 过程：Agent 问了什么、我怎么答、哪里猜错了
 
-热身提示词一发出去，Agent 先做了一次环境核查（在工作目录里 grep 确认 `setRequiredHeaders` 确实不存在、JDK/Maven 版本、`pom.xml` 的编译级别），然后只问了我一个最关键的问题：**这次热身到底是"为后续 TDD 铺路"，还是"为 DDD 分析积累业务手感"，还是"纯粹自己探险"**——因为这三种用途会让它选哪些场景、写多细的测试得出相反的结论。我选了"铺路为主、手感为辅"。
+子域分析提示词发出去之前，Agent 先自己核查了一批"属于它自己职责"的事实（场景清单 `ch02-1-2-scenarios-for-warming-up.md` 已经存在、生产代码一共 12 个 `.java` 文件、当前 HEAD 和场景文件的锚点之间只差一个新增的测试文件、git 历史完整可查可以实测波动性），然后只问了 Round 0 的一个问题：**后续"棕地新增需求"这个练习，到底是谁、以什么形态做**——是我自己在这个仓库里动手实现 `setRequiredHeaders`、一场多人共读的工作坊、一次纯分析不动代码的练习，还是给其他同学核对答案用。它根据仓库里刚新增的特征测试这个信号，推荐"我自己动手实现、兼容工作坊"这个选项，并说明这会让 IMPACT_ANALYSIS 文档第 6 节保持"零剧透"（只摆权衡、不给倾向答案）。我同意了这个判断，并顺带把几件背景事实答给它：这批特征测试将来是"不可变的回归安全网"；这两份文档是为后续用 TDD 实现新需求做准备；篇幅居中即可；需要实地跑 `mvn` 测试佐证行为结论。
 
-前沿打开后，Agent 一次性抛出 5 个问题：测试覆盖多深（它建议覆盖 `DuplicateHeaderMode` 三种取值和大小写/缺名容忍这些"默认值差异"，而并非只覆盖需求原文点名的 4 类场景）、要不要专门写一个"固化现状失败模式"的特征测试（断言 `record.get("currency")` 今天会怎么报错，作为后续 TDD 的红色基线）、调试指南写多细、"踩坑记录"放哪、用哪个代码库基线。我基本都同意了它的建议，但纠正了两处它的默认假设：它一开始假设用 `git worktree` 克隆代码库以免污染源仓库，我要求改成普通 `git clone`；它还假设测试类"英文命名+中文注释"，我要求全部按 Apache 项目惯例走（英文命名+英文注释）。
+这些回答解锁了 4 个新的决策点，Agent 一次性问完：子域划分粒度要粗（3 个）、中（4-5 个）还是细（6 个以上）；IMPACT_ANALYSIS 第 6 节除了按模板列开放设计问题，要不要再加一张"设计抉择 ↔ 验收测试必须断言什么"的映射表；`mvn` 实测要做到什么程度（全量跑一次当基线 + 针对性验证，还是每条结论都单独验证一次）；要不要在文档末尾附一张给"实现 agent"用的导航锚点表。这一轮我都直接同意了它的建议——没有出现需要我纠正默认假设的地方，这一轮问得很顺。
 
-子域分析提示词的 Round 0 同样只问了一个问题：这两份文档到底是"真要拿去给 commons-csv 提 PR"，还是"培训教学用的示范文档"，还是"我自己的学习笔记"——这个答案决定了子域判断该多精确、该不该为了教学把推理过程写透。我选了"教学为主、落地为辅"，于是 Agent 承诺"每条判定既写推理过程，又对齐真实可执行的类和方法"。接下来三轮一共问了 13 个编号问题，典型的像：读/写要不要拆成两个子域（我同意拆）、`CSVFormat` 这一个类要不要拆成"格式配置"和"格式规则与不变式"两个子域（我同意拆，因为新需求恰好落在"规则"这条线上）、要不要允许一次性、不入库的实跑代码去确证行为（我同意，因为光读 3369 行的 `CSVFormat` 源码很容易猜错分支）。
+### 产出：5 个子域、哪个核心哪个通用哪个支撑、靠什么证据分出来的
 
-过程中出现了一次 Agent 自己纠正自己的插曲：它在表述 Q2 时把 `createHeaders()` 说成是写在 `CSVFormat` 里的，这其实是错的——它后来又主动 grep 复核了一遍源码，发现 `createHeaders()` 其实是 `CSVParser` 的私有方法，构建期校验在 `CSVFormat.validate()`，解析期校验在 `CSVParser.createHeaders()`，两者本来就分散在两个类里。它没有悄悄改掉前面的问题重新问一遍，而是在后续回复里直接列出"一处事实更正"，并指出这正好是 IMPACT_ANALYSIS 要写的一条关键事实。这件事给我的启发是：就算是 Agent 自己提出的技术判断，也要靠它自己或我去用 `grep`/实跑代码核验一遍，而并非读一遍源码就定论——这恰恰是本章方法论要解决的问题。
+问题前沿清空后，Agent 给我产出了文档 SUBDOMAINS （`ch02-2-2-subdomains.md`），把 commons-csv 这 12 个生产类（11 个真实类型 + 1 个纯文档性质的 `package-info.java`）收敛成 **5 个子域**：①格式契约（`CSVFormat` 及其内部 `Builder`/`Predefined`、`QuoteMode`、`DuplicateHeaderMode`、`Constants`，判定 **Core**）、②解析编排与表头/记录语义（`CSVParser`、`CSVRecord`，判定 **Core**）、③词法读取机制（`Lexer`、`Token`、`ExtendedBufferedReader`，判定 **Generic**）、④格式写出编排（`CSVPrinter`，判定 **Supporting**）、⑤错误词汇（`CSVException`，判定 **Supporting**）。每一条判定它都按"竞争优势类比／复杂度／波动性／能否外包替代"四个维度写了依据给我看，波动性这一项它并非凭印象下结论，而是真的跑了 `git log --oneline` 数出 `CSVFormat.java` **447** 次提交（含 132 次修 bug/JIRA 关键词的提交）、`CSVParser.java` **285** 次（77 次）、`CSVPrinter.java` 165 次、`Lexer.java` 121 次、`CSVRecord.java` 120 次、`ExtendedBufferedReader.java` 83 次——我看到这组数字直接支撑了"格式契约和解析编排是核心、词法机制虽然同样复杂但没有竞争优势"的判断。文档里它还专门留了一段声明：把"库"类比成"业务域"这件事本身只是一个分析假设，并非事实，这个类比最大的失真在于库的"战略"是由维护者社区对采纳度的追求隐性决定的，而并非企业的商业战略漂移。
 
-### 产出：6 个子域、哪个核心哪个通用哪个支撑、靠什么证据分出来的
+这份文档还解释了一个我一开始也会犯的错：人们最容易把"技术难度最高、代码量最大"的部分判成核心——在 commons-csv 上具体会表现为把 `Lexer`（552 行，引号/转义/注释/多字符分隔符的状态机）误判成核心。但按"竞争优势类比"这条标准，`Lexer` 做的是 RFC 4180 这种公开规范驱动的通用活，每个同类库都有等价实现，用户不会因为这个词法器写得更好而选 commons-csv；真正的核心是"声明式方言契约"（格式契约子域）和"按名访问的容错语义"（解析编排子域）——这两者才是这个库"选它而不选手写 `split()` 或其他库"的理由。`CSVFormat.java` 3369 行里，约 600 行是已废弃的 `with*` 家族历史兼容代码，如果按行数加权，反而会把最不该投入精力的历史负担误判成核心。
 
-问题前沿清空后，Agent 给我产出了文档 SUBDOMAINS （`ch02-2-2-subdomains.md`），把 commons-csv 这 12 个生产类收敛成 6 个子域：①格式规则与不变式（`CSVFormat` 的规则部分 + `QuoteMode` + `DuplicateHeaderMode`，判定 **Core**）、②记录读入与解析（`CSVParser`/`Lexer`/`Token`/`CSVRecord`，判定 **Core**）、③格式配置与预定义方言（`CSVFormat` 的配置部分 + `Predefined`，**Supporting**）、④记录写出与生成（`CSVPrinter`，**Supporting**）、⑤字符流缓冲与字节跟踪（`ExtendedBufferedReader`，**Generic**）、⑥基础设施与错误契约（`Constants`/`CSVException`/`package-info`，**Generic**）。每一条判定它都按"竞争优势类比／复杂度／波动性／能否外包替代"四个维度写了依据给我看，波动性这一项它并非凭印象下结论，而是真的跑了 `git log --oneline` 数出 `CSVFormat.java` 447 次提交、`CSVParser.java` 285 次、`CSVException.java` 只有 2 次——我看到这组数字直接支撑了"规则和解析是核心、异常基类是通用件"的判断。文档里它还特意留了一节"⚠️ 分歧/存疑"，老实写出"记录写出也可以被看作核心子域"这种反方观点，而并非把所有争议都抹平成一个确定结论。
-
-这份文档还解释了一个我一开始也会犯的错：人们最容易把"技术分层"误当成"子域边界"，于是把代码最长、最底层的 `CSVFormat`/`Lexer` 一起封成"核心"，因为它们"最难、最长"；但按子域边界的标准，字符缓冲和词法切分其实是换哪个 CSV 库都要做的通用活，真正的核心是"识别一种 CSV 方言、定义合法格式的业务规则"。
-
-这份子域分析里引用的，是热身阶段我真实跑出来的测试代码：`kata` 包下新增的 3 个 JUnit 5 特征测试类——`HeaderLookupTest`、`HeaderResolutionTest`、`HeaderValidationTest`，共 18 个 `@Test`，435 行，已经合并进公开仓库的提交 [`7da9dc74`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-deepseek-v4.1-flash-2026-10-11-with-warming-up-debug/commit/7da9dc74ef9a051de87aa00b229852e2aa0f0ba9)。这些测试我只验证了 commons-csv **今天已有**的行为，故意没有实现 `setRequiredHeaders`——留给后面章节做 TDD。
+这份子域分析引用了热身阶段真实产出的测试代码：`kata` 包下新增的 `HeadersCharacterizationTest`，18 个 `@Test`，282 行，已经合并进公开仓库的提交 [`24562da2`](https://github.com/wubin28/commons-csv-by-opencode-v2-with-glm-5.3/commit/24562da2fff56fefd61ec8f6ce352632fb301957)。这些测试我只验证了 commons-csv **今天已有**的行为，故意没有实现 `setRequiredHeaders`——留给后面章节做 TDD。
 
 ### 可信怎么实现的
 
-子域判定在我看来站得住，并非因为 Agent "读起来觉得合理"，而是靠三类真实证据：（1）它真的通读了全部 12 个生产 `.java` 文件，而不只看类名猜职责；（2）凡是"波动性""默认值"这类可以实测的结论，它都真的跑了 `git log` 或写了一次性不入库的验证代码去确证给我看，读不出证据的地方会明确标注"证据不足，推测如下"；（3）文档里的两张 Mermaid 依赖图，它用 `@mermaid-js/mermaid-cli` 真的渲染了一遍给我核对，过程中还发现并修了 2 处转义引号导致的语法错误——这意味着图并非"看起来像能画出来"，而是真的渲染通过的。
+子域判定在我看来站得住，并非因为 Agent "读起来觉得合理"，而是靠三类真实证据：（1）它真的通读了全部 12 个生产 `.java` 文件，而不只看类名猜职责；（2）凡是"波动性"这类可以实测的结论，它都真的跑了 `git log --oneline` 数出每个文件的提交次数去确证给我看，而并非凭印象下结论；（3）两张 Mermaid 依赖图上的每一条箭头，都标注了触发它的具体方法调用和源码行号（比如"`parse() 创建 (:2207)`"），而并非泛泛画一条线——这意味着图背后对应的是可以在 IDE 里逐条核对的真实调用关系，而非凭感觉画出来的示意图。
 
 #### 类级依赖关系图
 
@@ -139,77 +135,63 @@ graph TD
     classDef supporting fill:#e0ecff,stroke:#06c;
     classDef generic fill:#f0f0f0,stroke:#888,stroke-dasharray:4 2;
 
-    subgraph SD1["① 格式规则与不变式 (Core)"]
-        FMT_R["CSVFormat<br/>(规则部分: validate/isBlank)"]
+    subgraph SD1["① 格式契约 (Core)"]
+        FMT["CSVFormat<br/>(含 Builder / Predefined)"]
         QM["QuoteMode"]
         DHM["DuplicateHeaderMode"]
+        CONST["Constants"]
     end
 
-    subgraph SD3["③ 格式配置与预定义方言 (Supporting)"]
-        FMT_C["CSVFormat<br/>(配置字段/Builder/getter)"]
-        PRED["CSVFormat.Predefined"]
-    end
-
-    subgraph SD2["② 记录读入与解析 (Core)"]
+    subgraph SD2["② 解析编排与表头/记录语义 (Core)"]
         PARSER["CSVParser"]
         RECORD["CSVRecord"]
+    end
+
+    subgraph SD3["③ 词法读取机制 (Generic)"]
         LEXER["Lexer"]
         TOKEN["Token"]
-    end
-
-    subgraph SD4["④ 记录写出与生成 (Supporting)"]
-        PRINTER["CSVPrinter"]
-    end
-
-    subgraph SD5["⑤ 字符流缓冲与字节跟踪 (Generic)"]
         EBR["ExtendedBufferedReader"]
     end
 
-    subgraph SD6["⑥ 基础设施与错误契约 (Generic)"]
-        CONST["Constants"]
-        EXC["CSVException"]
-        PKG["package-info<br/>(无代码)"]
+    subgraph SD4["④ 格式写出编排 (Supporting)"]
+        PRINTER["CSVPrinter"]
     end
 
-    FMT_R -.->|同一类的两个视图| FMT_C
-    FMT_R --> QM
-    FMT_R --> DHM
-    FMT_C --> PRED
+    subgraph SD5["⑤ 错误词汇 (Supporting)"]
+        EXC["CSVException"]
+    end
 
-    PARSER --> LEXER
-    PARSER --> TOKEN
-    PARSER --> RECORD
-    PARSER --> EBR
-    PARSER --> FMT_C
-    PARSER --> DHM
-    PARSER --> QM
-    PARSER --> EXC
+    FMT --> QM
+    FMT --> DHM
+    FMT --> CONST
+    FMT -->|"parse() 创建"| PARSER
+    PARSER -->|"持有并读配置"| FMT
+    FMT -->|"print() 创建"| PRINTER
+    PRINTER -->|"委托单值序列化"| FMT
+    FMT -->|"局部构造"| EBR
+    PARSER -->|"创建+驱动"| LEXER
+    PARSER -->|"创建"| EBR
+    PARSER -->|"复用"| TOKEN
+    PARSER -->|"构造记录"| RECORD
+    RECORD -->|"回查 headerMap"| PARSER
+    LEXER -->|"构造时拷贝方言参数"| FMT
     LEXER --> EBR
     LEXER --> TOKEN
-    LEXER --> FMT_C
-    LEXER --> EXC
-    RECORD --> PARSER
-    RECORD --> CONST
-
-    PRINTER --> FMT_C
+    LEXER --> CONST
+    LEXER -->|"词法级坏输入"| EXC
+    PARSER -->|"INVALID token"| EXC
     PRINTER --> CONST
 
-    FMT_C --> PARSER
-    FMT_C --> PRINTER
-    FMT_C --> EBR
-    FMT_C --> CONST
-    FMT_R --> CONST
-
-    class FMT_R,QM,DHM,PARSER,RECORD,LEXER,TOKEN core
-    class FMT_C,PRED,PRINTER supporting
-    class EBR,CONST,EXC,PKG generic
+    class FMT,QM,DHM,CONST,PARSER,RECORD core
+    class LEXER,TOKEN,EBR generic
+    class PRINTER,EXC supporting
 ```
 
 **我读图时注意到的要点**
 
-- `CSVParser` 是唯一的"中枢"：它同时依赖配置（`FMT_C`）、解析件（`Lexer`/`Token`）、模型（`CSVRecord`）、通用件（`EBR`）和错误契约（`EXC`）。
-- 三对**双向依赖**：`CSVFormat ↔ CSVParser`（`CSVFormat.parse()` 造解析器，解析器读配置）、`CSVFormat ↔ CSVPrinter`（`CSVFormat.printer()` 造打印器）、`CSVParser ↔ CSVRecord`（记录回调解析器取表头映射）。
-- `Lexer`/`Token`/`EBR`/`Constants`/`CSVException`/`QuoteMode`/`DuplicateHeaderMode` 都是**叶子**（无同包反向依赖）。
+- 三对**双向依赖**：`CSVFormat ↔ CSVParser`（`CSVFormat.parse()` 造解析器，解析器反过来持有并读它的配置）、`CSVFormat ↔ CSVPrinter`（`CSVFormat.print()` 造打印器，打印器把单值序列化委托回 `CSVFormat`）、`CSVParser ↔ CSVRecord`（记录持有解析器引用、回查 `headerMap`）——这个库用"环"把契约、编排、模型焊在一起，它们本来就是同一个内聚功能的不同侧面，硬拆反而会破坏"本该一起变化的东西"。
+- `Lexer` 对 `CSVFormat` 是单向、只读、无转换的依赖（构造时直接拷贝方言参数），对 `CSVParser`/`CSVRecord` 只通过 `Token` 这一个窄接口暴露——这正是词法机制被判定为 Generic 的结构性证据。
+- `Constants` 几乎被所有类引用，为了图的可读性只画出代表性的几条。
 
 #### 子域依赖图（箭头上标注"接口是什么"）
 
@@ -219,34 +201,28 @@ graph TD
     classDef supporting fill:#e0ecff,stroke:#06c;
     classDef generic fill:#f0f0f0,stroke:#888,stroke-dasharray:4 2;
 
-    RULES["① 格式规则与不变式 (Core)"]
-    READ["② 记录读入与解析 (Core)"]
-    CONF["③ 格式配置与预定义方言 (Supporting)"]
-    WRITE["④ 记录写出与生成 (Supporting)"]
-    BUF["⑤ 字符流缓冲与字节跟踪 (Generic)"]
-    INFRA["⑥ 基础设施与错误契约 (Generic)"]
+    SD1["① 格式契约 (Core)"]
+    SD2["② 解析编排与表头/记录语义 (Core)"]
+    SD3["③ 词法读取机制 (Generic)"]
+    SD4["④ 格式写出编排 (Supporting)"]
+    SD5["⑤ 错误词汇 (Supporting)"]
 
-    CONF -->|"build()/get() 触发 validate()（不变式）"| RULES
-    READ -->|"读取方言参数: getDelimiterCharArray/getQuote/getHeader/getDuplicateHeaderMode"| CONF
-    READ -->|"解析期复用校验规则: 重复列名 / 空列名"| RULES
-    READ -->|"peek/read/行号/字节位置"| BUF
-    WRITE -->|"读取写出参数: getQuoteMode/getRecordSeparator/getNullString"| CONF
-    WRITE -->|"printWithEscapes(Reader) 复用 peek"| BUF
-    CONF -->|"printWithEscapes 构造 ExtendedBufferedReader"| BUF
-    READ -->|"抛 CSVException / 引用 Constants"| INFRA
-    WRITE -->|"引用 Constants"| INFRA
-    RULES -->|"引用 Constants"| INFRA
+    SD1 -->|"只读配置：delimiter/quote/nullString/header[]/duplicateHeaderMode 等 getter"| SD2
+    SD1 -->|"值级序列化规则：print()/println()"| SD4
+    SD2 -->|"nextToken()/Token 流 + reader 状态查询"| SD3
+    SD3 -.->|"CSVException（词法级坏输入）"| SD5
+    SD2 -.->|"CSVException（INVALID token 等）"| SD5
 
-    class RULES,READ core
-    class CONF,WRITE supporting
-    class BUF,INFRA generic
+    class SD1,SD2 core
+    class SD3 generic
+    class SD4,SD5 supporting
 ```
 
-热身阶段测试代码的可信度，是我靠"真的跑 `mvn test`"兑现的：18 个新测试第一次跑，有 3 个直接断言失败——比如我以为表头被消费后数据记录编号该从 2 开始，实测仍是 1；我以为允许缺名列时空列名会被跳过，实测它照样被写进了映射（size 是 2 并非 1）。这些"我以为会这样、实测却打脸"的坑，我原样记录进了调试指南的"实测踩坑记录"一节，而并非悄悄把断言改对了就当没发生过。
+热身阶段测试代码的可信度，是我靠"真的跑 `mvn test`"兑现的：18 个新测试一次性全绿，没有出现断言和实测不符的情况；但设计这批测试时确实有一次"预判偏差"——我最初以为重复表头的校验只有一个时机，实测发现手工表头在 `builder.get()`（配置期）就会抛，文件表头要等到 `format.parse()`（读入期）才抛。这个偏差被 `C1a`/`C1b` 两个测试分别钉住，而并非笼统合并成一条断言，也原样记录进了调试指南的"真实踩坑记录"一节。
 
 ### 是否一把过
 
-我的体会并非"一次发出去就什么都对"，但也没有真正的推倒重来。两份提示词加起来，我和 Agent 走了好几轮"假设体检+追问"（热身提示词 1 个 Round 0 问题 + 5 个编号问题；子域/影响分析提示词 1 个 Round 0 问题 + 13 个编号问题，分 4 轮问完），这些轮次本身就是方法论设计出来的——目的是在动手写文档和代码之前，先把分歧和默认假设都挑出来。真正动手之后，我遇到的唯一"返工"，是测试断言被实测结果纠正（3 处）和 Agent 自己发现并公开承认的一处事实性错误（`createHeaders()` 的位置），两者都是"发现错了就当场改、写进记录里"，没有出现"文档写完才发现子域分错了，整份重写"这种代价更高的返工。
+我的体会同样是并非"一次发出去就什么都对"，但也没有真正的推倒重来。两份提示词加起来，我和 Agent 走了两轮"假设体检+追问"（热身提示词 1 个 Round 0 问题 + 5 个编号问题；子域/影响分析提示词 1 个 Round 0 问题 + 4 个编号问题，各分 2 轮问完），这些轮次本身就是方法论设计出来的——目的是在动手写文档和代码之前，先把分歧和默认假设都挑出来。真正动手之后，我没有遇到"测试断言被实测结果打脸、需要回头改"这类返工；唯一算得上"发现问题"的，是热身阶段设计测试时那次"预判重复表头校验只有一个时机"的偏差，直接被写成 `C1a`/`C1b` 两个分别命中两个时机的测试用例，而并非先写错断言、跑出来再推翻重写。
 
 <a id="ch2-4"></a>
 
@@ -254,13 +230,13 @@ graph TD
 
 ### 过程：围着"这个需求到底牵动谁"反复确认
 
-影响分析和子域识别是同一份提示词、同一场对话产出的，所以 Round 0 的那个关键问题（教学为主还是落地为主）同样决定了影响分析要写到多细。确定"教学为主、结论对齐真实可执行的类和方法"之后，Agent 没有直接给结论，而是先按我的提示词要求**实地读代码**回答了"今天表头相关的校验分别发生在哪"：重复表头名校验分两处（`CSVFormat.validate()` 构建期、`CSVParser.createHeaders()` 解析期），都抛 `IllegalArgumentException`；空白/缺失表头名校验只在 `CSVParser.createHeaders()`；按名查找失败则在 `CSVRecord.get(String)`，正是需求原文抱怨的那个"迟报错"的点。
+影响分析和子域识别是同一份提示词、同一场对话产出的，所以 Round 0 关于"这次练习到底是谁、以什么形态做"的那个问题，同样决定了影响分析第 6 节该留白到什么程度。确定"我自己动手实现、兼容工作坊"之后，Agent 没有直接给结论，而是先按我的要求**实地读代码**回答了"今天表头相关的校验分别发生在哪"：手工表头的重复列名在 `CSVFormat.validate()`（配置期）；文件表头的重复列名和空/空白列名在 `CSVParser.createHeaders()`（读入期）；按名访问找不到列、无映射、索引越界分别在 `CSVRecord.get(String)`（都是晚失败）；表头列数不等于数据列数在 `CSVRecord.isConsistent()`（被动查询，不抛）；配置自身的自洽性校验在 `CSVFormat.validate()`——一共 8 条现状逐条列出发生的类/方法、时机、抛出的异常类型和消息。
 
-真正留给我决策的是最后 3 个问题（子域结构确定表、子域命名用中英双语、分歧怎么呈现），都是在前面 10 个问题定了调之后才能问的，我也都同意了建议。
+真正留给我决策的是 Round 1 的 4 个问题（子域划分粒度、要不要加"设计抉择↔验收测试映射表"、`mvn` 实测要做到什么程度、要不要给实现 agent 附一张导航锚点表），都是在 Round 0 定了调之后才能问的，我也都同意了建议。
 
 ### 产出：一条反直觉的结论、一张改动清单、6 个留白问题
 
-IMPACT_ANALYSIS 文档（`ch02-2-3-impact-analysis.md`）让我最想讲清楚的一条结论是：**"需求挂在哪个类的 API 上"不等于"业务规则该落在哪个子域"，也不等于"规则真正被强制执行的地方"**。需求字面上说"给 `CSVFormat.Builder` 加一个方法"，我的第一反应也是只改 `CSVFormat`；但真正的业务规则（"必需列必须存在"）属于核心子域①（格式规则与不变式），而规则的强制执行点却必须落在核心子域②（记录读入与解析），因为只有解析期才能拿到自动探测出来的真实表头——这恰好和现状里"重复列名校验分居构建期与解析期两处"是同一个结构。文档据此给我列出了逐类改动清单：`CSVFormat`/`Builder` 新增 `requiredHeaders` 字段和 setter（供②访问）、`CSVParser.createHeaders()` 末尾新增必需列检查、`CSVRecord` 代码不改但其"晚报错"路径会被正常路径绕开；`CSVPrinter`、`Lexer`、`Token`、`ExtendedBufferedReader`、`Constants` 等明确标注"不受影响"。
+IMPACT_ANALYSIS 文档（`ch02-2-3-impact-analysis.md`）让我最想讲清楚的一条结论是：**"需求挂在哪个类的 API 上"不等于"业务规则该落在哪个子域"**。需求字面上说"给 `CSVFormat.Builder` 加一个方法"，我的第一反应也是只改 `CSVFormat`；但真正的业务规则（"缺列必须在读第一条记录前报错"）必须落在②解析编排与表头/记录语义子域的 `CSVParser.createHeaders()` 里——因为表头三种来源（无表头、自动探测、手工指定）只在这个方法里汇合，①格式契约子域的 `validate()` 在 build 期根本看不到文件内容，对最常见的"自动探测表头"用法完全无效。这恰好和现状里"重复列名校验分居配置期与读入期两处"是同一个结构。文档据此给我列出了逐类改动清单：`CSVFormat` 新增 `requiredHeaders` 字段、`Builder.setRequiredHeaders()`、getter 以及 `equals`/`hashCode`/`toString`/复制链；`CSVParser.createHeaders()` 末尾新增必需列检查；`CSVRecord` 代码不改，其"晚报错"路径作为安全网原样保留；`CSVPrinter`、`Lexer`、`Token`、`ExtendedBufferedReader`、`CSVException` 等按"改/不改/视选择"逐一标注。
 
 #### 时序图（新增检查步骤插在哪一步）
 
@@ -294,15 +270,15 @@ sequenceDiagram
 
 **新增步骤位置**：`createHeaders()` 末尾、`return new Headers(...)` 之前（源码 L682）。它**先于**任何数据记录的返回（`nextRecord()` 在迭代期才被再次调用）。
 
-文档末尾留了 6 个没有标准答案的开放设计问题：异常类型该复用 `IllegalArgumentException` 还是新建类型、校验要不要同时覆盖"显式表头"和"自动探测表头"两种来源、是否要跟随 `ignoreHeaderCase`、新校验和既有的空列名/重复列名校验谁先谁后报错、没有表头时 `requiredHeaders` 该怎么办、要不要对称处理写方向——每个问题都只写清楚"权衡点是什么"，不给我自己的倾向，留给读者在第三章用决策表把它们一个个裁决掉。
+文档末尾留了 6 个没有标准答案的开放设计问题：异常类型该复用 `IllegalArgumentException` 还是改用 `CSVException`、必需列名和实际表头的匹配语义（精确匹配/trim 后匹配、是否跟随 `ignoreHeaderCase`、命中重复表头时取哪个索引）、校验时机是只在读入期统一校验还是也给手工表头在配置期提前校验、新校验和既有的空列名/重复列名校验谁先谁后报错、写方向的 `CSVPrinter` 要不要对称校验、配置矛盾（设了必需列却没配表头）和空文件场景该怎么处理——每个问题都只写清楚"权衡点是什么"，不给我自己的倾向，还额外配了一张"设计抉择 ↔ 验收测试必须断言什么"的映射表，留给读者在第三章用决策表把它们一个个裁决掉、落成验收测试。
 
 ### 可信怎么实现的
 
-这份影响分析的可信度，在我看来建立在它和子域识别用的是**同一套实测证据**：现状校验的类名、方法名、行号、精确异常消息，全部来自前面"实地读代码+一次性实跑"验证过的事实报告，而并非另起一套凭印象写的说明。文档还帮我特别验证了一致性——新需求的裂缝和"重复列名现状分居两处"的裂缝是同构的，这个类比本身就是一种交叉校验：如果影响分析得出的结论和已经验证过的现状规律自相矛盾，就说明判断错了。
+这份影响分析的可信度，在我看来建立在它和子域识别用的是**同一套实测证据**：现状校验的类名、方法名、行号、精确异常消息，全部来自前面"实地读代码+实跑既有测试"验证过的事实报告（全量 `mvn test` 1003 例全绿，外加针对性复跑 `CSVDuplicateHeaderTest` 348 例、`CSVRecordTest` 33 例、`HeadersCharacterizationTest` 18 例全绿），而并非另起一套凭印象写的说明。文档还帮我特别验证了一致性——新需求的裂缝和"重复列名现状分居两处"的裂缝是同构的，这个类比本身就是一种交叉校验：如果影响分析得出的结论和已经验证过的现状规律自相矛盾，就说明判断错了。
 
 ### 是否一把过
 
-我的体会同样是并非零迭代，但没有返工：10 道前置问题问完、3 道收尾问题确认完，文档一次成型，没有出现"结论写完又推翻重写"的情况。唯一一次方向性纠正，就是 2.3 里提到的那次"`createHeaders()` 位置说错了"的自我更正——而这次更正恰好被顺手写成了 IMPACT_ANALYSIS 里"规则分居两处"这条关键事实的佐证，并非被动被我点到了才改，而是 Agent 检查出来主动讲清楚给我听。
+我的体会同样是并非零迭代，但没有返工：Round 0 的 1 个问题加 Round 1 的 4 个编号问题问完，文档一次成型，没有出现"结论写完又推翻重写"的情况。这一轮我没有纠正 Agent 的任何默认假设，也没有发现需要公开更正的事实性错误——相比子域识别阶段那次"预判重复表头校验时机"的偏差，这一轮走得更顺。
 
 
 <a id="ch2-hands-on"></a>
@@ -326,7 +302,7 @@ sequenceDiagram
 - `<SUBDOMAINS_DOC_PATH>（可以使用./ch02-2-2-subdomains.md）`：第二份提示词产出的子域分析文档的相对路径
 - `<IMPACT_ANALYSIS_DOC_PATH>（可以使用./ch02-2-3-impact-analysis.md）`：第二份提示词产出的影响分析文档的相对路径
 
-既然 Agent 能够在你本地电脑上执行操作，那么推荐你在本地电脑为实操创建一个空目录，比如目录名可以叫 `<WORK_DIRECTORY>`；然后在终端里进入这个目录，并启动你常用的 Agent ，比如 OpenCode V2 ，并搭配你常用的大模型，比如 DeepSeek V4.1 Flash；之后就可以把已经替换好上述占位符的完整提示词依次复制给 Agent，开始实操。在"假设体检加追问"阶段，你能在这个目录中找到 Agent 生成的对话记录文件 `<DIALOGS>.md（可以使用./ch02-1-1-dialogs.md）` ，方便你查看，以及当 Agent 因故中断后能换一个 Agent 继续。
+既然 Agent 能够在你本地电脑上执行操作，那么推荐你在本地电脑为实操创建一个空目录，比如目录名可以叫 `<WORK_DIRECTORY>`；然后在终端里进入这个目录，并启动你常用的 Agent ，比如 OpenCode V2 ，并搭配你常用的大模型，比如 GLM 5.3；之后就可以把已经替换好上述占位符的完整提示词依次复制给 Agent，开始实操。在"假设体检加追问"阶段，你能在这个目录中找到 Agent 生成的对话记录文件 `<DIALOGS>.md（可以使用./ch02-1-1-dialogs.md）` ，方便你查看，以及当 Agent 因故中断后能换一个 Agent 继续。
 
 <details>
 <summary>📋 第一份：热身提示词——先用单步调试熟悉陌生代码库（点击展开/折叠，可直接复制给 Agent）</summary>
